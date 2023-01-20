@@ -1,8 +1,10 @@
 import numpy as np
-from typing import Tuple, Union, Optional
+from typing import Tuple, Union
 
 from IdleKnights.constants import *
-from IdleKnights.logic.routing.a_solver import compute as a_compute
+from IdleKnights.logic.route import Route
+from IdleKnights.logic.route_generation.a_solver import compute as a_compute
+
 
 class Maze:
     def __init__(self, nx: int, ny: int, flip: bool = True, initialize: bool = True):
@@ -105,60 +107,15 @@ class Maze:
         return new_maze
 
     @classmethod
-    def reduce_map(cls, input_maze, factor_x, factor_y = None):
+    def reduce_map(cls, input_maze, factor_x, factor_y=None):
         if factor_y is None:
             factor_y = factor_x
         board = input_maze._board
-        reduced = np.add.reduceat(np.add.reduceat(board, range(0, input_maze.ny, factor_y)).T, range(0, input_maze.nx, factor_x)).T
+        reduced = np.add.reduceat(np.add.reduceat(board, range(0, input_maze.ny, factor_y)).T,
+                                  range(0, input_maze.nx, factor_x)).T
         new_maze = cls(reduced.shape[0], reduced.shape[1], input_maze.flip, initialize=False)
         new_maze._board[reduced > 0] = BOARD_WALL
         return new_maze
-
-
-class Route:
-    def __init__(self, route):
-        self._reduced = None
-        self._len = np.inf
-        self._route = None
-        self.path = route
-
-    @property
-    def path(self):
-        return self._route
-
-    @path.setter
-    def path(self, value):
-        self._route = value
-        self._reduced_route()
-        self._len_route()
-
-    @property
-    def reduced_route(self):
-        return self._reduced
-
-    def _reduced_route(self):
-        if self.path.shape[0] == 0:
-            self._reduced = np.array([[]])
-            return
-        d = np.sum(np.diff(self.path, axis=0), axis=1)
-        self._reduced = np.concatenate((self.path[0, :][np.newaxis, :],
-                                        self.path[:-1, :][d != 2, :],
-                                        self.path[-1, :][np.newaxis, :]), axis=0)
-
-    def _len_route(self):
-        self._len = np.sum(np.sqrt(np.sum(np.diff(self._reduced, axis=0) ** 2, axis=1)))
-
-    @property
-    def length(self):
-        return self._len
-
-    @property
-    def start(self):
-        return self.path[0, :]
-
-    @property
-    def end(self):
-        return self.path[-1, :]
 
 
 def coloured_square(hex_string):
