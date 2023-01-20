@@ -1,5 +1,5 @@
 [build-system]
-requires = ["poetry-core", "cython>0.29.33", "setuptools", "numpy"]
+requires = ["poetry-core", "cython", "setuptools", "numpy"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
@@ -15,7 +15,7 @@ classifiers = [
     "License :: OSI Approved :: BSD-Clause",
     "Programming Language :: Python :: 3 :: Only",
 ]
-packages = [ { include = "PathOptimization" } ]
+packages = [ { include = "IdleKnights" } ]
 build = "build.py"
 
 [tool.poetry.dependencies]
