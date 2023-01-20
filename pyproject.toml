@@ -1,0 +1,23 @@
+[build-system]
+requires = ["poetry-core", "cython>0.29.33", "setuptools", "numpy"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "IdleQuestKnights"
+version = "0.1.0"
+description = "Knights for the game Quest"
+license = "BSD-3-Clause"
+authors = ["Simon Ward"]
+readme = "README.md"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD-Clause",
+    "Programming Language :: Python :: 3 :: Only",
+]
+packages = [ { include = "PathOptimization" } ]
+build = "build.py"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+numpy = "^1.24"

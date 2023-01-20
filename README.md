@@ -1,2 +1,2 @@
-# Quest Charaters
+# Quest Characters
 Knight for the game Quest
