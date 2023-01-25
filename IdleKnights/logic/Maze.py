@@ -11,7 +11,8 @@ class Maze:
         self.nx = nx
         self.ny = ny
         self.flip = flip
-        self._board = BOARD_EMPTY * np.ones((nx, ny), dtype=np.intc)
+        self._board: np.ndarray = BOARD_EMPTY * np.ones((nx, ny), dtype=np.intc)
+        self.fog_of_war = np.ones((nx, ny), dtype=bool)
         self._i_board = self._board[::-1]
         if initialize:
             self.initialize_board()
@@ -48,13 +49,13 @@ class Maze:
         new_section[empty_mask] = BOARD_EMPTY
         new_section[wall_mask] = BOARD_WALL
 
-        if np.any(uk_mask):
-            new_section = np.ma.array(new_section, mask=uk_mask)
-
-        if inverted_section:
-            self._board[sx:ex, sy:ey] = new_section[::-1]
-        else:
-            self._board[sx:ex, sy:ey] = new_section
+        try:
+            view = self._board[sx:ex, sy:ey]
+            view[~uk_mask] = new_section[~uk_mask]
+        except IndexError:
+            return
+        # fog_view = self.fog_of_war[sx:ex, sy:ey]
+        # fog_view[~uk_mask] = False
 
     @property
     def read_board(self):
@@ -74,10 +75,33 @@ class Maze:
     def in_maze(self, x, y):
         return x > 0 & x < self.nx & y > 0 & y < self.ny
 
-    def solve_maze(self, start, end):
-        start = np.array(start, dtype=np.intc)
-        end = np.array(end, dtype=np.intc)
-        return Route(a_compute(self._board, start, end)[::-1])
+    def solve_maze(self, start, end, extra=None):
+        try:
+            start = np.array(start, dtype=np.intc)
+            end = np.array(end, dtype=np.intc)
+        except TypeError:
+            print(start)
+            print(end)
+        if extra is None:
+            return Route(a_compute(self._board, start, end)[::-1])
+        else:
+            sx = np.min([start[0], end[0]])-extra
+            if sx < 0:
+                sx = 0
+            ex = np.max([start[0], end[0]])+extra
+            if ex > 1790:
+                ex = 1790
+            sy = np.min([start[1], end[1]])-extra
+            if sy < 0:
+                sy = 0
+            ey = np.max([start[1], end[1]])+extra
+            if ey > 960:
+                ey = 960
+            off = np.array([sx, sy], dtype=np.intc)
+            r = a_compute(self._board[sx:ex, sy:ey].copy(), start-off, end-off)[::-1]
+            if r.shape[0] > 0:
+                r = r + off
+            return Route(r)
 
     @staticmethod
     def _colorize(elm):
@@ -91,13 +115,18 @@ class Maze:
             return coloured_square('#CCCCCC')
 
     def __str__(self):
+        if self._board.size > 25**2:
+            return self.__repr__(' TruncatedView')
         s = []
         for j in range(self.read_board.shape[1]):
-            s.append(''.join([f'{self._colorize(self.read_board[j, i])}' for i in range(self.read_board.shape[0])]))
+            s.append(''.join([f'{self._colorize(self.read_board[i, j])}' for i in range(self.read_board.shape[0])]))
         return '\n'.join(s)
 
-    def __repr__(self):
-        return f'Maze <{self.nx},{self.ny}>'
+    def __repr__(self, additional_text: str=None):
+        s = f'Maze <{self.nx},{self.ny}>'
+        if additional_text is not None:
+            s += additional_text
+        return s
 
     @classmethod
     def insert_route(cls, input_maze, route):

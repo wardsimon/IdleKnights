@@ -93,23 +93,23 @@ def compute(int[:, ::1] board, int[::1] start_point,  int[::1] end_point):
     # If the source is out of range
     if not isValid(start_pair.first, start_pair.second, nx, ny):
         print("Source is invalid")
-        np.array([], dtype=np.intc)
+        return np.array([], dtype=np.intc)
 
     # If the destination is out of range
     if not isValid(end_pair.first, end_pair.second, nx, ny):
         print("Destination is invalid")
-        np.array([], dtype=np.intc)
+        return np.array([], dtype=np.intc)
 
     # Either the source or the destination is blocked
     if (not isUnblocked(board, start_pair.first, start_pair.second)) or (not isUnblocked(board, end_pair.first, end_pair.second)):
         print("Source [" + str(not isUnblocked(board, start_pair.first, start_pair.second)) +
               "] or the destination [" + str(not isUnblocked(board, end_pair.first, end_pair.second)) + "] is blocked")
-        np.array([], dtype=np.intc)
+        return np.array([], dtype=np.intc)
 
     # If the destination cell is the same as source cell
     if isDestination(start_pair.first, start_pair.second, end_pair):
         print("We are already at destination")
-        np.array([], dtype=np.intc)
+        return np.array([], dtype=np.intc)
 
     # Create a closed list and initialise it to false which means that no cell
     # has been included yet This closed  list is implemented as a boolean 2D array
