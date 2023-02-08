@@ -1,21 +1,25 @@
 __author__ = 'github.com/wardsimon'
 __version__ = '0.0.1'
 
-from quest.knights.exampleAI import Team, ExampleWarrior
+from quest.core.team import Team
 from IdleKnights.logic.manager import Manager
 from .constants import *
-from IdleKnights.charaters.warrior import make_warrior
-from IdleKnights.charaters.seeker import make_seeker
+from IdleKnights.charaters import make_character
+from IdleKnights.charaters.warrior import Warrior
+from IdleKnights.charaters.seeker import Seeker
+
 
 class MyTeam(Team):
     def reset_team(self):
-        manager = Manager(team)
+        manager = Manager(self)
         for knight in self.values():
             knight.manager = manager
 
 
 team = MyTeam(CREATOR,
-            Arthur=make_seeker(0), Galahad=make_seeker(1), Lancelot=make_warrior(0))
+              Arthur1=make_character(Seeker, index=0), Galahad1=make_character(Seeker, index=1),
+              Lancelot1=make_character(Seeker, index=2))
 
 team2 = MyTeam(CREATOR,
-            Arthur=make_seeker(0), Galahad=make_warrior(1), Lancelot=make_warrior(0))
+               Arthur2=make_character(Seeker, index=0), Galahad2=make_character(Seeker, index=1),
+               Lancelot2=make_character(Seeker, index=2))

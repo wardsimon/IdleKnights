@@ -12,6 +12,7 @@ class Maze:
         self.ny = ny
         self.flip = flip
         self._board: np.ndarray = BOARD_EMPTY * np.ones((nx, ny), dtype=np.intc)
+        self._board_dilated: np.ndarray = BOARD_EMPTY * np.ones((nx, ny), dtype=np.intc)
         self.fog_of_war = np.ones((nx, ny), dtype=bool)
         self._i_board = self._board[::-1]
         if initialize:
@@ -29,14 +30,20 @@ class Maze:
         self._board[:, 0] = BOARD_WALL
         self._board[:, -1] = BOARD_WALL
 
+        self._board_dilated[0, :] = BOARD_WALL
+        self._board_dilated[-1, :] = BOARD_WALL
+        self._board_dilated[:, 0] = BOARD_WALL
+        self._board_dilated[:, -1] = BOARD_WALL
+
     def update_maze_single(self, location: Union[Tuple[int, int], np.ndarray], new_element: Union[int, np.ndarray]):
         if isinstance(location, Tuple):
             location = np.array([[*location]])
             new_element = np.array([new_element])
         for idx, loc in enumerate(location):
             self._board[loc[0], loc[1]] = new_element[idx]
+            self._board_dilated[loc[0], loc[1]] = new_element[idx]
 
-    def update_maze_matrix(self, location: Tuple[int, int], new_section: np.ndarray, inverted_section: bool = False):
+    def update_maze_matrix(self, location: Tuple[int, int], new_section: np.ndarray, dilated_new_section: np.ndarray, inverted_section: bool = False):
         sx = location[0]
         sy = location[1]
         ex = sx + new_section.shape[0]
@@ -49,9 +56,21 @@ class Maze:
         new_section[empty_mask] = BOARD_EMPTY
         new_section[wall_mask] = BOARD_WALL
 
+        empty_mask2 = dilated_new_section == INPUT_EMPTY
+        wall_mask2 = dilated_new_section == INPUT_WALL
+        uk_mask2 = dilated_new_section == INPUT_UNKNOWN
+
+        new_section[empty_mask] = BOARD_EMPTY
+        new_section[wall_mask] = BOARD_WALL
+
+        dilated_new_section[empty_mask2] = BOARD_EMPTY
+        dilated_new_section[wall_mask2] = BOARD_WALL
+
         try:
             view = self._board[sx:ex, sy:ey]
             view[~uk_mask] = new_section[~uk_mask]
+            view = self._board_dilated[sx:ex, sy:ey]
+            view[~uk_mask2] = dilated_new_section[~uk_mask2]
         except IndexError:
             return
         # fog_view = self.fog_of_war[sx:ex, sy:ey]
@@ -98,9 +117,15 @@ class Maze:
             if ey > 960:
                 ey = 960
             off = np.array([sx, sy], dtype=np.intc)
-            r = a_compute(self._board[sx:ex, sy:ey].copy(), start-off, end-off)[::-1]
-            if r.shape[0] > 0:
-                r = r + off
+            try:
+                r = a_compute(self._board[sx:ex, sy:ey].copy(), self._board_dilated[sx:ex, sy:ey].copy(), start-off, end-off)[::-1]
+            except ValueError:
+                return Route(np.array([start, end], dtype=np.intc))
+            except LookupError:
+                return Route(np.array([start, end], dtype=np.intc))
+            except ReferenceError:
+                return Route(np.array([start, end], dtype=np.intc))
+            r = r + off
             return Route(r)
 
     @staticmethod
