@@ -8,12 +8,17 @@ from typing import Dict, Tuple, Optional, List
 import numpy as np
 
 from IdleKnights import NY, NX
-from IdleKnights.charaters.templateAI import IdleTemplate
+from IdleKnights.charaters.templateAI import IdleTemplate, CONVERTER
 from IdleKnights.tools.positional import team_reflector
 
 
+def flag_game(info: dict):
+    "Quickly determine which game we're in"
+    return 'flags' in info.keys()
+
 @dataclasses.dataclass
 class Calculator:
+    "Base class for logic"
     knight: IdleTemplate
     info: Dict[str, any]
 
@@ -111,13 +116,16 @@ class Positional(Calculator):
 
     def calculate(self) -> Tuple[float, np.ndarray, Optional[List[IdleTemplate]]]:
         knight = self.knight
-        position = knight._current_position
+        position = knight._current_position[0]
         # This is the optimal position for the castle
-        start_position = team_reflector(knight.team, [100, NY/2])
-
+        start_position = team_reflector(knight.team, [100, NY/2])[0]
+        end_position = team_reflector(knight.team, [NX-100, NY/2])[0]
+        x = np.abs(position/(end_position - start_position))
+        if start_position > end_position:
+            x = np.abs(x-1)
         # exponential decay
-        f = 1 - np.exp(-np.abs(position - start_position)/(NX-200))
-        return f[0]
+        f = 2*(1 - np.exp(-np.log(2)*x))
+        return f
 
 
 @dataclasses.dataclass
@@ -131,21 +139,29 @@ class Harvester(Calculator):
         gem = np.array([0, 0])
         if self.info["gems"]:
             gem = knight.get_n_gem(me, self.info)
-            f = (2*knight._dt * knight.speed)/np.hypot(*(knight._current_position - gem))
+            f = (2*knight._dt * knight.speed)/np.hypot(*(position - gem))
         return f, gem, None
 
 
 @dataclasses.dataclass
 class Castler(Calculator):
     def calculate(self):
-        knight = self.knight
-        me = self.info['me']
-        visible_castle = knight.can_see_castle(me, self.info, other_castle=True)
-        position = self.info['flags'].get(knight.opposing_team, np.array([0, 0]))
-        friends = None
-        if visible_castle:
-            friends = self.others()
-        return float(visible_castle), position, friends
+        if flag_game(self.info):
+            return castler_flag(self)
+        else:
+            return castler_flag(self)
+
+def castler_flag(calc):
+    knight = calc.knight
+    me = calc.info['me']
+    visible_castle = knight.can_see_castle(me, calc.info, other_castle=True)
+    position = CONVERTER(knight, calc.info).get(knight.opposing_team, np.array([0, 0]))
+    if len(position) == 0:
+        position = np.array([0, 0])
+    friends = None
+    if visible_castle:
+        friends = calc.others()
+    return float(visible_castle), position, friends
 
 
 @dataclasses.dataclass
@@ -159,16 +175,16 @@ class MyCastler(Calculator):
             if len(enemies) == 0:
                 visible_castle = False
             else:
-                distance = np.array([np.hypot(*(self.info['flags'][knight.team] - enemy['position'])) for enemy in enemies])
+                distance = np.array([np.hypot(*(CONVERTER(knight, self.info)[knight.team] - enemy['position'])) for enemy in enemies])
                 ind = np.argmin(distance)
                 closest_enemy = enemies[ind]
                 enemy_distance = distance[ind]
-                my_distance = np.hypot(*(self.info['flags'][knight.team] - knight._current_position))
+                my_distance = np.hypot(*(CONVERTER(knight, self.info)[knight.team] - knight._current_position))
                 my_speed = knight.speed
                 enemy_speed = closest_enemy['speed']
                 if enemy_distance * enemy_speed < 1.5 * my_distance * my_speed:
                     visible_castle = (enemy_distance * enemy_speed)/(my_distance * my_speed)
-        position = self.info['flags'].get(knight.team)
+        position = CONVERTER(knight, self.info).get(knight.team)
         friends = None
         visible_castle = float(visible_castle)
         if visible_castle > 0:

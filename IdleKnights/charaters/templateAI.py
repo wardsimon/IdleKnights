@@ -4,8 +4,7 @@ import numpy as np
 from scipy.signal import convolve2d
 from types import MappingProxyType
 
-from IdleKnights.constants import CREATOR, KERNEL, INPUT_UNKNOWN, INPUT_EMPTY, INPUT_WALL, BOARD_WALL, BOARD_EMPTY, NX, \
-    NY
+from IdleKnights.constants import CREATOR, KERNEL, INPUT_UNKNOWN, INPUT_EMPTY, INPUT_WALL, BOARD_WALL, BOARD_EMPTY
 from IdleKnights.logic.route import Waypoint
 from IdleKnights.tools.logging import get_logger
 from IdleKnights.tools.positional import circle_around, parse_position
@@ -30,10 +29,22 @@ class TemplateAI(BaseAI):
         pass
 
 
-class IdleTemplate(TemplateAI):
+def CONVERTER(knight, info):
+    mode = knight.mode
+    if mode == 'flag':
+        return info['flags']
+    elif mode == 'king':
+        d = {knight.team: np.array([info['friends'][-1]['x'], info['friends'][-1]['y']])}
+        for enemy in info['enemies']:
+            if enemy['name'] == 'King':
+                d[knight.opposing_team] = np.array([enemy['x'], enemy['y']])
+                break
+        return d
 
+class IdleTemplate(TemplateAI):
     manager = None
     number = None
+    mode = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, creator=CREATOR, **kwargs)
@@ -45,16 +56,21 @@ class IdleTemplate(TemplateAI):
         self.previous_position = deque(maxlen=10)
         self.previous_health = 0
         self.speed = 0
+        self.time_taken = 0
         self.destination = None
         self.first_run = True
         self._waypoints = Waypoint()
         self.logger = None
-        self._status = {'going_to_castle': False,
+        self._status = {'going_to_castle':   False,
                         'going_to_fountain': False,
-                        'going_to_gem': False,
-                        'going_to_enemy': False,
-                        'going_exploring': False
+                        'going_to_gem':      False,
+                        'going_to_enemy':    False,
+                        'going_exploring':   False
                         }
+        if self.mode is None:
+            self.mode = 'flag'
+        if self.number is None:
+            self.number = 0
 
     def reset_status(self):
         for key in self._status:
@@ -114,9 +130,10 @@ class IdleTemplate(TemplateAI):
         :doc-author: Trelent
         """
         find_team = self.team
+        d = CONVERTER(self, info)
         if other_castle:
             find_team = self.opposing_team
-        if find_team not in info["flags"].keys():
+        if find_team not in d.keys() or (isinstance(d[find_team], np.ndarray) and d[find_team].size == 0):
             return False
         x = me['x']
         mi_x = x - me['view_radius']
@@ -127,14 +144,16 @@ class IdleTemplate(TemplateAI):
         if mi_y < 0:
             mi_y = 0
         local_map = info['local_map']
-        return mi_x < info['flags'][find_team][0] < x + local_map.shape[0] and \
-            mi_y < info['flags'][find_team][1] < y + local_map.shape[1]
+        return mi_x < d[find_team][0] < x + local_map.shape[0] and \
+            mi_y < d[find_team][1] < y + local_map.shape[1]
 
     def goto_castle(self, me, info, other_castle: bool = False):
         find_team = self.team
         if other_castle:
             find_team = self.opposing_team
-        self.goto_position(me["position"], info['flags'][find_team], extra=80)
+        # self.goto_position(me["position"], info['flags'][find_team], extra=80)
+        pos = CONVERTER(self, info)[find_team]
+        self.goto_position(self._current_position, pos, extra=80)
 
     def path_runner(self, route, default):
         if route.length > 0:
@@ -161,7 +180,8 @@ class IdleTemplate(TemplateAI):
             end_position = self.spiral_around_position(end_position)
         if len(self._waypoints.destination) < 2 \
                 or self._r is not None \
-                and np.hypot(self._r.start[0]-start_position[0], self._r.start[1]-start_position[1]) > 0.5*self.view_radius:
+                and np.hypot(self._r.start[0] - start_position[0],
+                             self._r.start[1] - start_position[1]) > 0.5 * self.view_radius:
             self._r = self.manager.maze.solve_maze(start_position, end_position, extra=extra)
             self._r.view_distance = 3 * self.speed * self._dt
             self._waypoints.destination = self._r.reduced_route[1:]
@@ -184,11 +204,12 @@ class IdleTemplate(TemplateAI):
 
     def explore_position(self, me, position, compute_radius: float = None):
         if compute_radius is None:
-            compute_radius= self.view_radius * 2.5
+            compute_radius = self.view_radius * 2.5
         current = me["position"].copy()
-        if np.hypot(me["position"][0] - position[0], me["position"][1] - position[1]) <= 0.95*self.speed*self._dt:
+        if np.hypot(me["position"][0] - position[0], me["position"][1] - position[1]) <= 0.95 * self.speed * self._dt:
             self.logger.warn(f'Bypassing  routing for point: {position}')
             self.manager.route[me["name"]].pop_waypoint()
+            position = parse_position(position)
             self._goto_position(position)
             return
         if np.hypot(position[0] - current[0], position[1] - current[1]) > compute_radius:
@@ -240,10 +261,11 @@ class IdleTemplate(TemplateAI):
                          )
             if l[0] == 0 or np.all(l / l[0] == 1) and l[0] < 2 and len(l) > 8:
                 self.logger.critical('Help, I think I am stuck... Running with random waypoints')
-                pos = np.random.random(2)*10 + self.previous_position[0]
+                pos = np.random.random(2) * 10 + self.previous_position[0]
                 self._waypoints.destination.appendleft(pos.astype(np.intc))
 
     def post_run(self, t: float, dt: float, info: dict):
         me = info['me']
         self.previous_position.appendleft(me['position'])
         self.previous_health = me['health']
+        self.time_taken = t
