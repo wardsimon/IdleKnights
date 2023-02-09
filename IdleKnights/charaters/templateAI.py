@@ -1,27 +1,91 @@
+from collections import deque, namedtuple
+
 import numpy as np
 from scipy.signal import convolve2d
+from types import MappingProxyType
 
 from IdleKnights.constants import CREATOR, KERNEL, INPUT_UNKNOWN, INPUT_EMPTY, INPUT_WALL, BOARD_WALL, BOARD_EMPTY
-from quest.knights.templateAI import TemplateAI
+from IdleKnights.logic.route import Waypoint
 from IdleKnights.tools.logging import get_logger
 from IdleKnights.tools.positional import circle_around, parse_position
 
+import abc
+from quest.core.ai import BaseAI
+
+Status = namedtuple('Status', ['position', 'time', 'dt', 'speed', 'view_radius'])
+
+
+class TemplateAI(BaseAI):
+
+    def __init__(self, *args, creator: str = None, kind: str = None, **kwargs):
+        if creator is None or not isinstance(creator, str):
+            raise AttributeError('The AI needs a `creator`')
+        if kind is None or not isinstance(kind, str):
+            raise AttributeError('The warrior needs a `kind`')
+        super().__init__(*args, creator=creator, kind=kind, **kwargs)
+
+    @abc.abstractmethod
+    def run(self, t: float, dt: float, info: dict):
+        pass
+
+
+def CONVERTER(knight, info):
+    mode = knight.mode
+    if mode == 'flag':
+        return info['flags']
+    elif mode == 'king':
+        d = {knight.team: np.array([info['friends'][-1]['x'], info['friends'][-1]['y']])}
+        for enemy in info['enemies']:
+            if enemy['name'] == 'King':
+                d[knight.opposing_team] = np.array([enemy['x'], enemy['y']])
+                break
+        return d
 
 class IdleTemplate(TemplateAI):
-
     manager = None
     number = None
+    mode = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, creator=CREATOR, **kwargs)
-        self.previous_position = [0, 0]
+        self.name = None
+        self._current_position = None
+        self._r = None
+        self._dt = None
+        self.view_radius = None
+        self.previous_position = deque(maxlen=10)
         self.previous_health = 0
+        self.speed = 0
+        self.time_taken = 0
         self.destination = None
         self.first_run = True
-        self.logger = get_logger(f'{CREATOR}-{self.__class__.__name__}{id(self)}')
+        self._waypoints = Waypoint()
+        self.logger = None
+        self._status = {'going_to_castle':   False,
+                        'going_to_fountain': False,
+                        'going_to_gem':      False,
+                        'going_to_enemy':    False,
+                        'going_exploring':   False
+                        }
+        if self.mode is None:
+            self.mode = 'flag'
+        if self.number is None:
+            self.number = 0
+
+    def reset_status(self):
+        for key in self._status:
+            self._status[key] = False
+
+    def set_status(self, status):
+        self.reset_status()
+        self._status[status] = True
+
+    @property
+    def status(self):
+        return MappingProxyType(self._status)
 
     def update_map(self, me, info):
-        fog_of_war = info['local_map'] < 0
+
         local_map = info['local_map']
         local_map[local_map == 2] = 0
         x = me['x']
@@ -33,16 +97,24 @@ class IdleTemplate(TemplateAI):
         if mi_y < 0:
             mi_y = 0
         result = convolve2d(local_map.astype(np.intc), KERNEL, mode='same').astype(np.intc)
+
+        i_mask = local_map < 0
+        e_mask = local_map == 0
+        w_mask = local_map > 0
+        local_map[i_mask] = INPUT_UNKNOWN
+        local_map[e_mask] = INPUT_EMPTY
+        local_map[w_mask] = INPUT_WALL
+
         i_mask = result < 0
         e_mask = result == 0
         w_mask = result > 0
         result[i_mask] = INPUT_UNKNOWN
         result[e_mask] = INPUT_EMPTY
         result[w_mask] = INPUT_WALL
-        self.manager.maze.update_maze_matrix([mi_x, mi_y], result)
 
+        self.manager.maze.update_maze_matrix([mi_x, mi_y], local_map, result)
 
-    def can_see_castle(self, me, info, other_castle: bool=False):
+    def can_see_castle(self, me, info, other_castle: bool = False):
         """
         The can_see_castle function checks if the castle is in the local map of a given
         unit. The function takes three arguments: me, info, and castle. Me is a dictionary
@@ -58,9 +130,10 @@ class IdleTemplate(TemplateAI):
         :doc-author: Trelent
         """
         find_team = self.team
+        d = CONVERTER(self, info)
         if other_castle:
             find_team = self.opposing_team
-        if find_team not in info["flags"].keys():
+        if find_team not in d.keys() or (isinstance(d[find_team], np.ndarray) and d[find_team].size == 0):
             return False
         x = me['x']
         mi_x = x - me['view_radius']
@@ -71,78 +144,99 @@ class IdleTemplate(TemplateAI):
         if mi_y < 0:
             mi_y = 0
         local_map = info['local_map']
-        return mi_x < info['flags'][find_team][0] < x + local_map.shape[0] and \
-            mi_y < info['flags'][find_team][1] < y + local_map.shape[1]
+        return mi_x < d[find_team][0] < x + local_map.shape[0] and \
+            mi_y < d[find_team][1] < y + local_map.shape[1]
 
     def goto_castle(self, me, info, other_castle: bool = False):
         find_team = self.team
         if other_castle:
             find_team = self.opposing_team
-        self.goto_position(me["position"], info['flags'][find_team], backup_position=info['flags'][find_team], extra=80)
+        # self.goto_position(me["position"], info['flags'][find_team], extra=80)
+        pos = CONVERTER(self, info)[find_team]
+        self.goto_position(self._current_position, pos, extra=80)
 
     def path_runner(self, route, default):
         if route.length > 0:
             if route.path.shape[0] > 2:
                 self._goto_position(route.path[2, :])
-            elif route.path.shape[0] > 1:
+            elif 2 >= route.path.shape[0] > 1:
                 self._goto_position(route.path[1, :])
             else:
-                self._goto_position(default)
+                self._goto_position(self.spiral_around_position(default, n=5 ** 2))
             return
-        self._goto_position(self.spiral_around_position(default, n= 5**2))
+        self._goto_position(self.spiral_around_position(default, n=5 ** 2))
 
     def _goto_position(self, position):
-        self.goto = [position[0], position[1]]
+        self.heading = self.heading_from_vector(position - self._current_position)
 
-    def goto_position(self, start_position, end_position, backup_position=None, extra=None):
+    def goto_position(self, start_position, end_position, extra=None):
         start_position = parse_position(start_position)
         if self.manager.maze._board[start_position[0], start_position[1]] == BOARD_WALL:
-            self.logger.info(f'Position {start_position} is blocked, spiralling')
+            self.logger.info(f'Start position {start_position} is blocked, spiralling')
             start_position = self.spiral_around_position(start_position)
         end_position = parse_position(end_position)
-        if backup_position is None:
-            backup_position = end_position
-        else:
-            backup_position = parse_position(backup_position)
-        end_position = end_position.astype(np.intc)
         if self.manager.maze._board[end_position[0], end_position[1]] == BOARD_WALL:
-            self.logger.info(f'Position {end_position} is blocked, spiralling')
+            self.logger.info(f'End position {end_position} is blocked, spiralling')
             end_position = self.spiral_around_position(end_position)
-        r = self.manager.maze.solve_maze(start_position, end_position, extra=extra)
-        self.path_runner(r, backup_position)
-    def goto_gem(self, me, info):
-        gems = np.array([[x, y] for x, y in zip(info['gems']['x'], info['gems']['y'])])
-        gems_distance = np.array([[x-me["x"], y -me["y"]] for x, y in zip(info['gems']['x'], info['gems']['y'])])
-        gems = gems[np.apply_along_axis(lambda row: np.hypot(row[0], row[1]), axis=1, arr=gems_distance).argsort()]
-        self.goto_position(me["position"], gems[0, :], backup_position=None, extra=40)
+        if len(self._waypoints.destination) < 2 \
+                or self._r is not None \
+                and np.hypot(self._r.start[0] - start_position[0],
+                             self._r.start[1] - start_position[1]) > 0.5 * self.view_radius:
+            self._r = self.manager.maze.solve_maze(start_position, end_position, extra=extra)
+            self._r.view_distance = 3 * self.speed * self._dt
+            self._waypoints.destination = self._r.reduced_route[1:]
+        mini_point = self._waypoints.next_waypoint(start_position, tol=0.95 * self.speed * self._dt)
+        if mini_point is None:
+            mini_point = end_position
+        if self.manager.maze._board[mini_point[0], mini_point[1]] == BOARD_WALL:
+            self.logger.info(f'Truncated waypoint {mini_point} is blocked, spiralling')
+            mini_point = self.spiral_around_position(mini_point)
+            self._waypoints.pop_waypoint()
+        self._goto_position(mini_point)
+
     def get_n_gem(self, me, info, n=1):
         gems = np.array([[x, y] for x, y in zip(info['gems']['x'], info['gems']['y'])])
-        gems_distance = np.array([[x-me["x"], y -me["y"]] for x, y in zip(info['gems']['x'], info['gems']['y'])])
+        gems_distance = np.array([[x - me["x"], y - me["y"]] for x, y in zip(info['gems']['x'], info['gems']['y'])])
         gems = gems[np.apply_along_axis(lambda row: np.hypot(row[0], row[1]), axis=1, arr=gems_distance).argsort()]
         if n == 1:
             return gems[0, :]
         return gems[0:n, :]
 
-    def explore_position(self, me, position, D: float =None):
-        if D is None:
-            D = me['view_radius'] * 1.5
+    def explore_position(self, me, position, compute_radius: float = None):
+        if compute_radius is None:
+            compute_radius = self.view_radius * 2.5
         current = me["position"].copy()
-        if np.hypot(me["position"][0] - position[0], me["position"][1] - position[1]) < 1.5:
+        if np.hypot(me["position"][0] - position[0], me["position"][1] - position[1]) <= 0.95 * self.speed * self._dt:
             self.logger.warn(f'Bypassing  routing for point: {position}')
             self.manager.route[me["name"]].pop_waypoint()
+            position = parse_position(position)
             self._goto_position(position)
             return
-        position_bu = position.copy()
-        if np.hypot(position[0]-current[0], position[1]-current[1]) > D:
-            position = current + D*self.vector_from_heading(self.heading_from_vector([position[0]-current[0], position[1]-current[1]]))
+        if np.hypot(position[0] - current[0], position[1] - current[1]) > compute_radius:
+            position = current + compute_radius * self.vector_from_heading(
+                self.heading_from_vector([position[0] - current[0], position[1] - current[1]]))
         position = parse_position(position)
-        self.goto_position(current, position, backup_position=position_bu, extra=200)
+        self.goto_position(current, position, extra=200)
 
-    def spiral_around_position(self, position, n=36**2, value=BOARD_EMPTY):
+    def spiral_around_position(self, position, n=36 ** 2, value=BOARD_EMPTY):
+        pop_waypoint = False
+        pop_waypoint2 = False
+        if np.all(position == self.manager.route[self.name].next_waypoint(self._current_position)):
+            pop_waypoint = True
+        if np.all(position == self._waypoints.next_waypoint(self._current_position)):
+            pop_waypoint2 = True
         for ind, p in circle_around(position[0], position[1]):
             point = parse_position(p)
             if self.manager.maze._board[point[0], point[1]] == value:
                 self.logger.info(f'Spiraler found point {point} (from {position})')
+                if pop_waypoint:
+                    self.manager.route[self.name].pop_waypoint()
+                    self.logger.info(f'Spiraler popped waypoint {position} from route and appended {point}')
+                    self.manager.route[self.name].destination.appendleft(point)
+                if pop_waypoint2:
+                    self._waypoints.pop_waypoint()
+                    self.logger.info(f'Spiraler popped waypoint {position} from route and appended {point}')
+                    self._waypoints._destination.appendleft(point)
                 return point
             if ind > n:
                 self.logger.info(f'Spiraler did not find valid {position}')
@@ -150,10 +244,28 @@ class IdleTemplate(TemplateAI):
 
     def run(self, t: float, dt: float, info: dict):
         me = info['me']
+        if self.first_run:
+            self.name = me['name']
+            self.logger = get_logger(f'{CREATOR}-{me["name"]}')
         self.update_map(me, info)
+        self.speed = me["speed"]
+        self._dt = dt
+        self.view_radius = me["view_radius"]
+        self._current_position = me["position"]
+        self.stuck_evaluation(self._current_position)
+
+    def stuck_evaluation(self, current_position):
+        if len(self.previous_position) > 0:
+            l = np.hypot(np.array(self.previous_position)[:, 0] - current_position[0],
+                         np.array(self.previous_position)[:, 1] - current_position[1]
+                         )
+            if l[0] == 0 or np.all(l / l[0] == 1) and l[0] < 2 and len(l) > 8:
+                self.logger.critical('Help, I think I am stuck... Running with random waypoints')
+                pos = np.random.random(2) * 10 + self.previous_position[0]
+                self._waypoints.destination.appendleft(pos.astype(np.intc))
 
     def post_run(self, t: float, dt: float, info: dict):
         me = info['me']
-        self.previous_position = me['position']
+        self.previous_position.appendleft(me['position'])
         self.previous_health = me['health']
-
+        self.time_taken = t

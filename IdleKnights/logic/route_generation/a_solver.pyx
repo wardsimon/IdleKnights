@@ -82,7 +82,7 @@ cdef cnp.ndarray[int, ndim=2] tracePath(cell[:, ::1] cellDetails_view, Pair dest
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def compute(int[:, ::1] board, int[::1] start_point,  int[::1] end_point):
+def compute(int[:, ::1] board, int[:, ::1] board_dilated, int[::1] start_point,  int[::1] end_point):
 
     cdef Pair start_pair = Pair(start_point[0], start_point[1])
     cdef Pair end_pair = Pair(end_point[0], end_point[1])
@@ -92,24 +92,20 @@ def compute(int[:, ::1] board, int[::1] start_point,  int[::1] end_point):
 
     # If the source is out of range
     if not isValid(start_pair.first, start_pair.second, nx, ny):
-        print("Source is invalid")
-        return np.array([], dtype=np.intc)
+        raise ValueError("Source is invalid")
 
     # If the destination is out of range
     if not isValid(end_pair.first, end_pair.second, nx, ny):
-        print("Destination is invalid")
-        return np.array([], dtype=np.intc)
+        raise ValueError("Destination is invalid")
 
     # Either the source or the destination is blocked
     if (not isUnblocked(board, start_pair.first, start_pair.second)) or (not isUnblocked(board, end_pair.first, end_pair.second)):
-        print("Source [" + str(not isUnblocked(board, start_pair.first, start_pair.second)) +
-              "] or the destination [" + str(not isUnblocked(board, end_pair.first, end_pair.second)) + "] is blocked")
-        return np.array([], dtype=np.intc)
+        e = f"Source [{not isUnblocked(board, start_pair.first, start_pair.second)}] or the destination [{not isUnblocked(board, end_pair.first, end_pair.second)}] is blocked"
+        raise LookupError(e)
 
     # If the destination cell is the same as source cell
     if isDestination(start_pair.first, start_pair.second, end_pair):
-        print("We are already at destination")
-        return np.array([], dtype=np.intc)
+        raise ValueError("We are already at destination")
 
     # Create a closed list and initialise it to false which means that no cell
     # has been included yet This closed  list is implemented as a boolean 2D array
@@ -208,7 +204,7 @@ def compute(int[:, ::1] board, int[::1] start_point,  int[::1] end_point):
                     return tracePath(cellDetails_view, end_pair)
                 # If the successor is already on the closed list or if it is blocked,
                 # then ignore it. Else do the following
-                elif closedList_view[op.first, op.second] == 0 and isUnblocked(board, op.first, op.second):
+                elif closedList_view[op.first, op.second] == 0 and isUnblocked(board_dilated, op.first, op.second):
 
                     gNew = cellDetails_view[i, j].g + 1.0
                     # gNew = cellDetails_view[i, j].g + 1.0 # THIS SHOULD BE sqrt(2) for diagonal elements
@@ -227,6 +223,5 @@ def compute(int[:, ::1] board, int[::1] start_point,  int[::1] end_point):
                         cellDetails_view[op.first, op.second].h = hNew
                         cellDetails_view[op.first, op.second].parent_i = i
                         cellDetails_view[op.first, op.second].parent_j = j
-    if foundDest is False:
-        print("Failed to find the Destination Cell\n")
-    return np.array([], dtype=np.intc)
+    if not foundDest:
+        raise ReferenceError("Failed to find the Destination Cell\n")

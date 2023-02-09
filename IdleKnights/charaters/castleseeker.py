@@ -3,14 +3,14 @@ __version__ = '0.0.1'
 
 
 from IdleKnights.logic.route import Waypoint
-from IdleKnights.constants import np, NX, NY
-from .templateAI import IdleTemplate, CONVERTER
+from IdleKnights.constants import np, NY
+from .templateAI import IdleTemplate
 from IdleKnights.tools.positional import team_reflector
-from ..logic.searching import general_search_points
 from ..logic.situation import Fighter, Positional, Harvester, Castler
+from ..logic.searching import general_search_points
 
-KIND = 'warrior'
-WARRIOR_DICT = {
+KIND = 'healer'
+SEEKER_DICT = {
     'health_ratio': 0.5,
     'distance_ratio': 0.25,
     'fight_ratio': 0.75,
@@ -19,14 +19,14 @@ WARRIOR_DICT = {
 }
 
 
-class CastleKiller(IdleTemplate):
+class CastleSeeker(IdleTemplate):
 
     def __init__(self, *args, health_ratio: float = None, distance_ratio: float = None,
                  fight_ratio: float = None, gem_ration: float = None, castle_ratio: float = None, **kwargs):
         super().__init__(*args, kind=KIND, **kwargs)
         self._enemy_override = None
         self.previous_gem = None
-        self.control_parameters = WARRIOR_DICT.copy()
+        self.control_parameters = SEEKER_DICT.copy()
         if health_ratio is not None:
             self.control_parameters['health_ratio'] = health_ratio
         if distance_ratio is not None:
@@ -41,17 +41,20 @@ class CastleKiller(IdleTemplate):
     def run(self, t: float, dt: float, info: dict):
         super().run(t, dt, info)
         me = info['me']
+        name = 'Seeker'
+
         if self.manager.override[me['name']] is not None:
             override_point = self.manager.override[me['name']]
             self.logger.warn(f"Routing overriden, going to {override_point}")
             self.explore_position(me, override_point)
+            self.post_run(t, dt, info)
             return
 
         if self.first_run:
-            name = 'Killer'
+            # How many knights are there?
             pts = general_search_points(self, info, name)
             wp = Waypoint([team_reflector(self.team, pt) for pt in pts])
-            self.manager.route[self.name] = wp
+            self.manager.route[me['name']] = wp
             self.first_run = False
             self.set_status('going_exploring')
         castle_ratio, castle_position, castle_friends = Castler(self, info).calculate()
