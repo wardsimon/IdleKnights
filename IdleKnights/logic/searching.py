@@ -82,7 +82,7 @@ def CONVERTER(knight, info):
     elif mode == 'king':
         d = {knight.team: np.array([info['friends'][-1]['x'], info['friends'][-1]['y']])}
         for enemy in info['enemies']:
-            if enemy['name'] == 'King':
+            if enemy['name'].lower() == 'king':
                 d[knight.opposing_team] = np.array([enemy['x'], enemy['y']])
                 break
         return d

@@ -142,13 +142,22 @@ class IdleTemplate(TemplateAI):
         return mi_x < d[find_team][0] < x + local_map.shape[0] and \
             mi_y < d[find_team][1] < y + local_map.shape[1]
 
-    def goto_castle(self, me, info, other_castle: bool = False):
+    def goto_castle(self, me, info, other_castle: bool = False, override_position = None):
         find_team = self.team
         if other_castle:
             find_team = self.opposing_team
-        # self.goto_position(me["position"], info['flags'][find_team], extra=80)
-        pos = CONVERTER(self, info)[find_team]
-        self.goto_position(self._current_position, pos, extra=80)
+        if override_position is None:
+            position = CONVERTER(self, info)[find_team]
+        else:
+            position = override_position
+        friends = info['friends']
+        knights_positions = [knight["position"] for knight in friends if knight["name"] != me["name"]]
+        # Are any of the knights in attack position?
+        kings_block = np.floor(position / 32) * 32
+        if np.any(np.all(kings_block == np.floor(np.array(knights_positions) / 32) * 32, axis=1)):
+            self.logger.warn(f"Routing overriden, going out of attack position {position + 17}")
+            position += 17
+        self.goto_position(self._current_position, position, extra=80)
 
     def path_runner(self, route, default):
         if route.length > 0:
@@ -286,8 +295,11 @@ class IdleTemplate(TemplateAI):
             point_setter = friends[idx]
             # Check to see if he's dead and can continue giving commands
             if point_setter['health'] > 0:
-                self.logger.warn(f"Routing overriden, going to {position}")
-                self.explore_position(me, position)
+                if message == "going_to_castle":
+                    self.goto_castle(me, info, other_castle=True, override_position=position)
+                else:
+                    self.logger.warn(f"Routing overriden, going to {position}")
+                    self.explore_position(me, position)
                 reset_run = True
             else:
                 self.manager.override[self.name] = None

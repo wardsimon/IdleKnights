@@ -1,5 +1,5 @@
 [build-system]
-requires = ["poetry-core", "cython", "setuptools", "numpy"]
+requires = ["poetry-core", "cython", "setuptools", "numpy", "wheel"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
@@ -19,7 +19,7 @@ packages = [ { include = "IdleKnights" } ]
 build = "build.py"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.7"
 numpy = "^1.24"
 scipy = "^1.10.0"
 quest = {git="https://github.com/nvaytet/quest.git", rev="main"}

@@ -47,7 +47,7 @@ class CastleSeeker(IdleTemplate):
             for name in castle_friends:
                 self.manager.override[name] = castle_position, 'going_to_castle', self.name
             self.logger.info(f"Found opposing castle at {castle_position} - Calling Reinforcements")
-            self.goto_castle(me, info, other_castle=True)
+            self.goto_castle(me, info, other_castle=True, override_position=castle_position)
             self.set_status('going_to_castle')
         else:
             fighting_ratio, fighting_position, fighting_friends = Fighter(self, info,
