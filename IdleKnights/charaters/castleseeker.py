@@ -2,12 +2,10 @@ __author__ = 'github.com/wardsimon'
 __version__ = '0.0.1'
 
 
-from IdleKnights.logic.route import Waypoint
 from IdleKnights.constants import np, NY
 from .templateAI import IdleTemplate
 from IdleKnights.tools.positional import team_reflector
 from ..logic.situation import Fighter, Positional, Harvester, Castler
-from ..logic.searching import general_search_points
 
 KIND = 'healer'
 SEEKER_DICT = {
@@ -22,7 +20,7 @@ SEEKER_DICT = {
 class CastleSeeker(IdleTemplate):
 
     def __init__(self, *args, health_ratio: float = None, distance_ratio: float = None,
-                 fight_ratio: float = None, gem_ration: float = None, castle_ratio: float = None, **kwargs):
+                 fight_ratio: float = None, gem_ratio: float = None, castle_ratio: float = None, **kwargs):
         super().__init__(*args, kind=KIND, **kwargs)
         self._enemy_override = None
         self.previous_gem = None
@@ -33,34 +31,21 @@ class CastleSeeker(IdleTemplate):
             self.control_parameters['distance_ratio'] = distance_ratio
         if fight_ratio is not None:
             self.control_parameters['fight_ratio'] = fight_ratio
-        if gem_ration is not None:
-            self.control_parameters['gem_ratio'] = gem_ration
+        if gem_ratio is not None:
+            self.control_parameters['gem_ratio'] = gem_ratio
         if castle_ratio is not None:
             self.control_parameters['castle_ratio'] = castle_ratio
 
     def run(self, t: float, dt: float, info: dict):
         super().run(t, dt, info)
         me = info['me']
-        name = 'Seeker'
-
-        if self.manager.override[me['name']] is not None:
-            override_point = self.manager.override[me['name']]
-            self.logger.warn(f"Routing overriden, going to {override_point}")
-            self.explore_position(me, override_point)
-            self.post_run(t, dt, info)
+        reset_run = self.run_override(info, me)
+        if reset_run:
             return
-
-        if self.first_run:
-            # How many knights are there?
-            pts = general_search_points(self, info, name)
-            wp = Waypoint([team_reflector(self.team, pt) for pt in pts])
-            self.manager.route[me['name']] = wp
-            self.first_run = False
-            self.set_status('going_exploring')
         castle_ratio, castle_position, castle_friends = Castler(self, info).calculate()
         if castle_ratio > self.control_parameters['castle_ratio']:
             for name in castle_friends:
-                self.manager.override[name] = castle_position
+                self.manager.override[name] = castle_position, 'going_to_castle', self.name
             self.logger.info(f"Found opposing castle at {castle_position} - Calling Reinforcements")
             self.goto_castle(me, info, other_castle=True)
             self.set_status('going_to_castle')
@@ -102,7 +87,7 @@ class CastleSeeker(IdleTemplate):
             if point is None:
                 self.logger.info('No more waypoints, going to explore')
                 self.set_status('going_exploring')
-                self.manager.route[me['name']].add_next_waypoint(team_reflector(self.team, [100, 100*np.random.random()]))
-                self.manager.route[me['name']].add_next_waypoint(team_reflector(self.team, [100, NY-100*np.random.random()]))
+                for pnt in self.backup_waypoints:
+                    self.manager.route[me['name']].add_next_waypoint(team_reflector(self.team, pnt))
             self.explore_position(me, point)
         self.post_run(t, dt, info)

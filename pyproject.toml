@@ -22,4 +22,4 @@ build = "build.py"
 python = "^3.8"
 numpy = "^1.24"
 scipy = "^1.10.0"
-quest = {git="https://github.com/wardsimon/quest.git", rev="main"}
+quest = {git="https://github.com/nvaytet/quest.git", rev="main"}

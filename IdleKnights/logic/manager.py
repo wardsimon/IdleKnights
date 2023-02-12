@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from quest.core.team import Team
 
-# class Manager(UserDict):
+
 class Manager:
 
     def __init__(self, team: Team):
@@ -24,10 +24,12 @@ class Manager:
         self._others = {v: k for k, v in team.items()}
         self.waypoints = {k: WaypointStack() for k in team.keys()}
 
-    def others(self, filter=None):
-        if filter is None:
-            filter = lambda item: True
-        return {key: value for key, value in self._others.items() if filter(key)}
+    def others(self, knight_filter=None):
+        if knight_filter is None:
+            knight_filter = lambda item: True
+        return {key: value for key, value in self._others.items() if knight_filter(key)}
 
+    def coordinated_attack_king(self, knight, info):
+        pass
     # def __getitem__(self, key):
     #     pass

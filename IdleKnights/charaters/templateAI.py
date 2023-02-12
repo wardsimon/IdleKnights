@@ -1,13 +1,15 @@
 from collections import deque, namedtuple
 
 import numpy as np
+from quest.core.manager import Manager
 from scipy.signal import convolve2d
 from types import MappingProxyType
 
 from IdleKnights.constants import CREATOR, KERNEL, INPUT_UNKNOWN, INPUT_EMPTY, INPUT_WALL, BOARD_WALL, BOARD_EMPTY
 from IdleKnights.logic.route import Waypoint
+from IdleKnights.logic.searching import general_search_points, CONVERTER
 from IdleKnights.tools.logging import get_logger
-from IdleKnights.tools.positional import circle_around, parse_position
+from IdleKnights.tools.positional import circle_around, parse_position, team_reflector
 
 import abc
 from quest.core.ai import BaseAI
@@ -29,25 +31,15 @@ class TemplateAI(BaseAI):
         pass
 
 
-def CONVERTER(knight, info):
-    mode = knight.mode
-    if mode == 'flag':
-        return info['flags']
-    elif mode == 'king':
-        d = {knight.team: np.array([info['friends'][-1]['x'], info['friends'][-1]['y']])}
-        for enemy in info['enemies']:
-            if enemy['name'] == 'King':
-                d[knight.opposing_team] = np.array([enemy['x'], enemy['y']])
-                break
-        return d
-
 class IdleTemplate(TemplateAI):
     manager = None
     number = None
     mode = None
+    initial_mode = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, creator=CREATOR, **kwargs)
+        self.backup_waypoints = None
         self.name = None
         self._current_position = None
         self._r = None
@@ -65,20 +57,23 @@ class IdleTemplate(TemplateAI):
                         'going_to_fountain': False,
                         'going_to_gem':      False,
                         'going_to_enemy':    False,
-                        'going_exploring':   False
+                        'going_exploring':   False,
+                        'castle_override':   False
                         }
         if self.mode is None:
             self.mode = 'flag'
         if self.number is None:
             self.number = 0
+        if self.manager is None:
+            self.manager = Manager(self)
 
     def reset_status(self):
         for key in self._status:
             self._status[key] = False
 
-    def set_status(self, status):
+    def set_status(self, status, field: bool = True):
         self.reset_status()
-        self._status[status] = True
+        self._status[status] = field
 
     @property
     def status(self):
@@ -253,6 +248,16 @@ class IdleTemplate(TemplateAI):
         self.view_radius = me["view_radius"]
         self._current_position = me["position"]
         self.stuck_evaluation(self._current_position)
+        if self.first_run:
+            if self.initial_mode is None:
+                pts, backup_pts = general_search_points(self, info, self.__class__.__name__)
+            else:
+                pts, backup_pts = self.initial_mode(info, self.__class__.__name__)
+            wp = Waypoint([team_reflector(self.team, pt) for pt in pts])
+            self.manager.route[me['name']] = wp
+            self.backup_waypoints = backup_pts
+            self.first_run = False
+            self.set_status('going_exploring')
 
     def stuck_evaluation(self, current_position):
         if len(self.previous_position) > 0:
@@ -269,3 +274,21 @@ class IdleTemplate(TemplateAI):
         self.previous_position.appendleft(me['position'])
         self.previous_health = me['health']
         self.time_taken = t
+
+    def run_override(self, info, me):
+        override_point = self.manager.override[self.name]
+        reset_run = False
+        if override_point is not None:
+            position, message, setter_name = override_point
+            friends: list = info['friends']
+            friend_names = [friend['name'] for friend in friends]
+            idx = friend_names.index(setter_name)
+            point_setter = friends[idx]
+            # Check to see if he's dead and can continue giving commands
+            if point_setter['health'] > 0:
+                self.logger.warn(f"Routing overriden, going to {position}")
+                self.explore_position(me, position)
+                reset_run = True
+            else:
+                self.manager.override[self.name] = None
+        return reset_run
