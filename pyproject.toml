@@ -1,81 +1,44 @@
 [build-system]
-requires = ["poetry-core", "cython>=0.29.32", "setuptools", "numpy>=1.24", "wheel"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry]
-name = "IdleQuestKnights"
-version = "0.1.0"
-description = "Knights for the game Quest"
-license = "BSD-3-Clause"
-authors = ["Simon Ward"]
-readme = "README.md"
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD-Clause",
-    "Programming Language :: Python :: 3 :: Only",
+# Minimum requirements for the build system to execute.
+requires = [
+    "setuptools>=42",  # https://github.com/deepcharles/ruptures/pull/100#discussion_r553700339
+    "wheel",
+    "Cython>=0.28.5",
+    "setuptools_scm[toml]>=3.4",  # https://scikit-hep.org/developer/packaging#git-tags-official-pypa-method
+    "numpy",  # https://github.com/scipy/oldest-supported-numpy
 ]
-packages = [ { include = "IdleKnights" } ]
-include = ["IdleKnights/**/*.so", "IdleKnights/**/*.dll"]  # ignored in VCS, so we need to be explicit
-exclude = ["IdleKnights/**/*.py"]
+build-backend = "setuptools.build_meta"
 
-[tool.poetry.build]
-script = "build.py"
-generate-setup-file = false
-
-[tool.poetry.dev-dependencies]
-Cython = "^0.29.32"
-
-[tool.poetry.dependencies]
-python = "^3.7"
-numpy = "^1.24"
-scipy = "^1.10.0"
-quest = {git="https://github.com/nvaytet/quest.git", rev="main"}
-
-[tool.cibuildwheel]
-build = "*"
-skip = ""
-test-skip = ""
-
-archs = ["auto"]
-build-frontend = "pip"
-config-settings = {}
-dependency-versions = "pinned"
-environment = {}
-environment-pass = []
-build-verbosity = ""
-
-before-all = ""
-before-build = "pip install cython numpy"
-repair-wheel-command = ""
-
-test-command = ""
-before-test = ""
-test-requires = []
-test-extras = []
-
-container-engine = "docker"
-
-manylinux-x86_64-image = "manylinux2014"
-manylinux-i686-image = "manylinux2014"
-manylinux-aarch64-image = "manylinux2014"
-manylinux-ppc64le-image = "manylinux2014"
-manylinux-s390x-image = "manylinux2014"
-manylinux-pypy_x86_64-image = "manylinux2014"
-manylinux-pypy_i686-image = "manylinux2014"
-manylinux-pypy_aarch64-image = "manylinux2014"
-
-musllinux-x86_64-image = "musllinux_1_1"
-musllinux-i686-image = "musllinux_1_1"
-musllinux-aarch64-image = "musllinux_1_1"
-musllinux-ppc64le-image = "musllinux_1_1"
-musllinux-s390x-image = "musllinux_1_1"
-
-
-[tool.cibuildwheel.linux]
-repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
-
-[tool.cibuildwheel.macos]
-repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
-
-[tool.cibuildwheel.windows]
+#[build-system]
+#requires = ["poetry-core", "cython>=0.29.32", "setuptools", "numpy", "wheel"]
+#build-backend = "poetry.core.masonry.api"
+#
+#[tool.poetry]
+#name = "IdleQuestKnights"
+#version = "0.1.0"
+#description = "Knights for the game Quest"
+#license = "BSD-3-Clause"
+#authors = ["Simon Ward"]
+#readme = "README.md"
+#classifiers = [
+#    "Development Status :: 3 - Alpha",
+#    "Intended Audience :: Developers",
+#    "License :: OSI Approved :: BSD-Clause",
+#    "Programming Language :: Python :: 3 :: Only",
+#]
+#packages = [ { include = "IdleKnights" } ]
+#include = ["IdleKnights/**/*.so", "IdleKnights/**/*.dll"]  # ignored in VCS, so we need to be explicit
+#exclude = ["IdleKnights/**/*.py"]
+#
+#[tool.poetry.build]
+#script = "build.py"
+#generate-setup-file = false
+#
+#[tool.poetry.dev-dependencies]
+#Cython = "^0.29.32"
+#
+#[tool.poetry.dependencies]
+#python = "^3.8"
+#numpy = "^1.24"
+#scipy = "^1.10.0"
+#quest = {git="https://github.com/nvaytet/quest.git", rev="main"}
