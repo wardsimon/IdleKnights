@@ -51,10 +51,10 @@ def build(setup_kwargs):
     # gcc arguments hack: enable optimizations
     os.environ['CFLAGS'] = '-O3'
 
-    exts = [Extension('*', extensions,
-                      include_dirs=[numpy.get_include()],
-                      libraries=["m"]
-                      )]
+    kwargs = {'include_dirs':[numpy.get_include()]}
+    if os.name != 'nt':
+        kwargs['libraries'] = ["m"]
+    exts = [Extension('*', extensions, **kwargs)]
 
     # Build
     setup_kwargs.update({
