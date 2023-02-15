@@ -7,8 +7,8 @@ from .constants import *
 from IdleKnights.charaters import make_character
 from IdleKnights.charaters.warrior import CastleKiller
 from IdleKnights.charaters.castleseeker import CastleSeeker
-
 from IdleKnights.logic.searching import king_defender
+
 
 class IdleTeam(Team):
     def reset_team(self):
@@ -20,7 +20,8 @@ class IdleTeam(Team):
 ANGRY = {
     'health_ratio':   0.15,
     'distance_ratio': 0.1,
-    'fight_ratio':    0.2
+    'fight_ratio':    0.2,
+    'gem_ratio':      1/2,
 }
 
 team = IdleTeam(CREATOR,
@@ -34,11 +35,12 @@ team2 = IdleTeam(CREATOR,
                Matarajin=make_character(CastleSeeker, index=2, mode='flag'))
 
 team3 = IdleTeam(CREATOR,
-               Melchior=make_character(CastleSeeker, index=0, mode='king'),
-               Caspar=make_character(CastleKiller, index=0, mode='king', inject_kwargs=ANGRY),
-               Balthazar=make_character(CastleKiller, index=1, mode='king'))
+                Caspar=make_character(CastleKiller, index=0, mode='king', initial_mode=king_defender, inject_kwargs=ANGRY),
+                Melchior=make_character(CastleSeeker, index=0, mode='king', initial_mode=king_defender,
+                                         inject_kwargs=ANGRY),
+                Balthazar=make_character(CastleKiller, index=1, mode='king', initial_mode=king_defender, inject_kwargs=ANGRY))
 
 team4 = IdleTeam(CREATOR,
-               Ruohtta=make_character(CastleSeeker, index=0, mode='king'),
-               Parnashavari=make_character(CastleKiller, index=0, mode='king'),
-               Matarajin=make_character(CastleSeeker, index=0, mode='king'))
+               Ruohtta=make_character(CastleSeeker, index=1, mode='king'),
+               Parnashavari=make_character(CastleKiller, index=1, mode='king'),
+               Matarajin=make_character(CastleKiller, index=0, mode='king'))

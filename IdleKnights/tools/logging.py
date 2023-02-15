@@ -4,8 +4,9 @@ __version__ = '0.0.1'
 import logging
 import sys
 from logging.handlers import TimedRotatingFileHandler
-
+from IdleKnights.constants import LOG_LEVEL
 LOG_FILE = "my_app.log"
+
 
 class CustomFormatter(logging.Formatter):
     """Logging colored formatter, adapted from https://stackoverflow.com/a/56944256/3638629"""
@@ -21,10 +22,10 @@ class CustomFormatter(logging.Formatter):
         super().__init__()
         self.fmt = fmt
         self.FORMATS = {
-            logging.DEBUG: self.grey + self.fmt + self.reset,
-            logging.INFO: self.blue + self.fmt + self.reset,
-            logging.WARNING: self.yellow + self.fmt + self.reset,
-            logging.ERROR: self.red + self.fmt + self.reset,
+            logging.DEBUG:    self.grey + self.fmt + self.reset,
+            logging.INFO:     self.blue + self.fmt + self.reset,
+            logging.WARNING:  self.yellow + self.fmt + self.reset,
+            logging.ERROR:    self.red + self.fmt + self.reset,
             logging.CRITICAL: self.bold_red + self.fmt + self.reset
         }
 
@@ -35,6 +36,7 @@ class CustomFormatter(logging.Formatter):
 
 
 FORMATTER = CustomFormatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s")
+
 
 def get_console_handler():
     console_handler = logging.StreamHandler(sys.stdout)
@@ -50,10 +52,14 @@ def get_file_handler():
 
 def get_logger(logger_name, to_file=False):
     logger = logging.getLogger(logger_name)
-    logger.setLevel(logging.DEBUG)  # better to have too much log than not enough
+    logger.setLevel(LOG_LEVEL)  # better to have too much log than not enough
     logger.addHandler(get_console_handler())
     if to_file:
         logger.addHandler(get_file_handler())
     # with this pattern, it's rarely necessary to propagate the error up to parent
     logger.propagate = False
     return logger
+
+
+def set_level(level: int = logging.INFO):
+    logging.getLogger().setLevel(level)

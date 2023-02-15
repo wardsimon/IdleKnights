@@ -72,6 +72,9 @@ class Route:
             self._reduced = np.array([[]])
             return
         step_size = np.sum(np.diff(self.path, axis=0), axis=1)
+        if step_size.shape[0] == 0:
+            self._reduced = self.path
+            return
         points = [self.path[0]]
         previous_step_size = step_size[0]
         mini_path_distance = 0
@@ -163,8 +166,9 @@ class Waypoint:
         :param waypoint:
         :return:
         """
-        if np.any(self._destination == waypoint):
-            return
+        if len(self._destination) > 0:
+            if np.any(np.all(np.array(self._destination) == waypoint, axis=1)):
+                return
         self._destination.appendleft(np.array(waypoint, dtype=np.intc))
 
     def pop_waypoint(self, from_start: bool = True):

@@ -10,7 +10,7 @@ from IdleKnights import team4 as AwsomeTeam2
 
 match = Match(red_team=make_team(AwsomeTeam),
               blue_team=make_team(AwsomeTeam2),
-              best_of=1,
+              best_of=3,
               game_mode='king')
 
-match.play(speedup=1.25, show_messages=False)
+match.play(speedup=1.0, show_messages=False)

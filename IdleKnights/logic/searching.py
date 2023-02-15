@@ -11,12 +11,12 @@ def general_search_points(knight, info, name):
     # Get the flag position
     target = np.array(CONVERTER(knight, info)[knight.team])
     pts = []
-    X_DIFF = 50
-    Y_DIFF = 50
+    X_DIFF = 75
+    Y_DIFF = 60
     # Do an upper/lower split search
-    if target[1] / 2 > NY / 2:
+    if target[1] > NY / 2:
         pts.append([NX - X_DIFF,
-                    NY - Y_DIFF/2 - Y_DIFF*(np.random.random()-0.5) - knight.number * (NY - knight.view_radius) / number_of_knights])
+                    NY - Y_DIFF/2 - Y_DIFF*(2*np.random.random()-0.5) - knight.number * (NY - knight.view_radius) / number_of_knights])
         pts.append([NX - X_DIFF,
                     NY - Y_DIFF/2 - Y_DIFF*(np.random.random()-0.5) - (knight.number + 1) * (NY - knight.view_radius) / number_of_knights])
         pts.append([NX - X_DIFF, NY - Y_DIFF])
@@ -28,46 +28,52 @@ def general_search_points(knight, info, name):
         pts.append([NX - X_DIFF, Y_DIFF])
 
     run_out_of_pts = [
-        [100, 100 * np.random.random()],
-        [100, NY - 100 * np.random.random()]
+        [100, 50 + np.random.randint(10, 60)],
+        [100, NY - 50 - np.random.randint(10, 60)]
     ]
 
-    return pts, run_out_of_pts
+    return pts, [team_reflector(knight.team, p) for p in run_out_of_pts]
 
 
 def king_defender(knight, info, name):
     target = np.array(CONVERTER(knight, info)[knight.team])
-    fountain_offset = np.array([0, NY/3])
-    fountain_radius = 200
-    lower_fountain = True
-    f = knight.view_radius/2
-    if target[1] > NY/2:
-        lower_fountain = False
-        f = - f
 
-    if target[1] > NY/2:
-        # we are at the top
-        pts = [
-            [target[0] - 75, NY - 125],
-            [target[0] - 75, 125],
-            [target[0] + 75, 125],
-            [target[0] + 75, NY - 125]
-        ]
+    pts1 = []
+    if target[1] > NY / 2:
+        # explore the upper half of the map
+        pts1.append([target[0]+50, NY - 100])
+        pts1.append([target[0]-50, NY - 100])
+        pts1.append([target[0]-50, NY/2])
+        pts1.append([target[0]+50, NY/2])
     else:
-        pts = [
-            [target[0] - 75, 125],
-            [target[0] - 75, NY - 125],
-            [target[0] + 75, NY - 125],
-            [target[0] + 75, 125]
-        ]
-    off1 = np.array([knight.view_radius/2, 0])
-    off2 = [0, f]
-    run_out_of_pts = [
-        target - off1 + off2,
-        target + off1 + off2,
-    ]
+        pts1.append([target[0]+50, 100])
+        pts1.append([target[0]-50, 100])
+        pts1.append([target[0]-50, NY/2])
+        pts1.append([target[0]+50, NY/2])
 
-    return [team_reflector(knight.team, p) for p in pts], [team_reflector(knight.team, p) for p in run_out_of_pts]
+    castle_type = info['castle']['direction']
+    if castle_type == 3:
+        pts = [
+            np.array([target[0]-16, target[1] - 32]),
+            np.array([target[0]+16, target[1] - 32]),
+        ]
+    elif castle_type == 1:
+        pts = [
+            np.array([target[0]-16, target[1] + 32]),
+            np.array([target[0]+16, target[1] + 32]),
+        ]
+    elif castle_type == 0:
+        pts = [
+            np.array([target[0]+32, target[1] - 16]),
+            np.array([target[0]+32, target[1] + 16]),
+        ]
+    elif castle_type == 2:
+        pts = [
+            np.array([target[0]-32, target[1] - 16]),
+            np.array([target[0]-32, target[1] + 16]),
+        ]
+    knight.control_parameters['gem_ratio'] = 1/10
+    return [team_reflector(knight.team, p) for p in pts1], [team_reflector(knight.team, p) for p in pts]
 
 
 

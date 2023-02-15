@@ -5,9 +5,12 @@ from quest.core.manager import Manager
 from scipy.signal import convolve2d
 from types import MappingProxyType
 
-from IdleKnights.constants import CREATOR, KERNEL, INPUT_UNKNOWN, INPUT_EMPTY, INPUT_WALL, BOARD_WALL, BOARD_EMPTY
+from IdleKnights.constants import CREATOR, KERNEL, INPUT_UNKNOWN, INPUT_EMPTY, INPUT_WALL, BOARD_WALL, BOARD_EMPTY, NX, \
+    NY, TIME, BLOCK_SIZE
 from IdleKnights.logic.route import Waypoint
+from IdleKnights.logic.route_generation.gradient_rtt import GradientMaze
 from IdleKnights.logic.searching import general_search_points, CONVERTER
+from IdleKnights.logic.situation import flag_game
 from IdleKnights.tools.logging import get_logger
 from IdleKnights.tools.positional import circle_around, parse_position, team_reflector
 
@@ -39,12 +42,15 @@ class IdleTemplate(TemplateAI):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, creator=CREATOR, **kwargs)
+        self.initial_health = None
         self.backup_waypoints = None
         self.name = None
         self._current_position = None
         self._r = None
         self._dt = None
         self.view_radius = None
+        self.control_parameters = dict()
+        self.control_parameters_base = dict()
         self.previous_position = deque(maxlen=10)
         self.previous_health = 0
         self.speed = 0
@@ -54,6 +60,7 @@ class IdleTemplate(TemplateAI):
         self._waypoints = Waypoint()
         self.logger = None
         self._status = {'going_to_castle':   False,
+                        'going_healing':     False,
                         'going_to_fountain': False,
                         'going_to_gem':      False,
                         'going_to_enemy':    False,
@@ -79,12 +86,12 @@ class IdleTemplate(TemplateAI):
     def status(self):
         return MappingProxyType(self._status)
 
-    def update_map(self, me, info):
+    def update_map(self, me, info, maze = None):
 
         local_map = info['local_map']
         local_map[local_map == 2] = 0
         x = me['x']
-        mi_x = x - me['view_radius']
+        mi_x = x - (me['view_radius'] + 2)
         if mi_x < 0:
             mi_x = 0
         y = me['y']
@@ -106,8 +113,10 @@ class IdleTemplate(TemplateAI):
         result[i_mask] = INPUT_UNKNOWN
         result[e_mask] = INPUT_EMPTY
         result[w_mask] = INPUT_WALL
-
-        self.manager.maze.update_maze_matrix([mi_x, mi_y], local_map, result)
+        if maze is None:
+            self.manager.maze.update_maze_matrix([mi_x, mi_y], local_map, result)
+        else:
+            maze.update_maze_matrix([mi_x, mi_y], local_map, result)
 
     def can_see_castle(self, me, info, other_castle: bool = False):
         """
@@ -142,7 +151,7 @@ class IdleTemplate(TemplateAI):
         return mi_x < d[find_team][0] < x + local_map.shape[0] and \
             mi_y < d[find_team][1] < y + local_map.shape[1]
 
-    def goto_castle(self, me, info, other_castle: bool = False, override_position = None):
+    def goto_castle(self, me, info, other_castle: bool = False, override_position=None):
         find_team = self.team
         if other_castle:
             find_team = self.opposing_team
@@ -150,14 +159,87 @@ class IdleTemplate(TemplateAI):
             position = CONVERTER(self, info)[find_team]
         else:
             position = override_position
+        position = np.array(position)
+        this_offset = np.zeros_like(position)
         friends = info['friends']
         knights_positions = [knight["position"] for knight in friends if knight["name"] != me["name"]]
         # Are any of the knights in attack position?
-        kings_block = np.floor(position / 32) * 32
-        if np.any(np.all(kings_block == np.floor(np.array(knights_positions) / 32) * 32, axis=1)):
-            self.logger.warn(f"Routing overriden, going out of attack position {position + 17}")
-            position += 17
-        self.goto_position(self._current_position, position, extra=80)
+        if not flag_game(info):
+            kings_block = np.floor(position / BLOCK_SIZE) * BLOCK_SIZE
+            castle_type = info['castle']['direction']
+            if castle_type == 0:
+                offset = np.array([(0, 1), (-1, 0), (0, -1)])
+            elif castle_type == 1:
+                offset = np.array([(1, 0), (0, -1), (-1, 0)])
+            elif castle_type == 2:
+                offset = np.array([(-1, 0), (0, 1), (0, -1)])
+            else:
+                offset = np.array([(-1, 0), (0, 1), (1, 0)])
+            if self.team == 'blue':
+                offset[:, 0] = -1 * offset[:, 0]
+            my_index = list(self.manager.override.keys()).index(self.name)
+            OFFSET_BLOCK = BLOCK_SIZE / 2
+            if np.any(np.all(kings_block == np.floor(np.array(knights_positions) / BLOCK_SIZE) * BLOCK_SIZE,
+                             axis=1)) or \
+                    info["me"]["cooldown"] > 0:
+                this_offset = np.floor((OFFSET_BLOCK + self._dt * self.speed * 1.5) * np.array(offset[my_index]))
+                self.logger.warn(f"Routing overriden, going out of attack position {position + this_offset}")
+        # Now we check if we have enemies in the area
+        enemies = info['enemies'].copy()
+        enemies = [enemy for enemy in enemies if enemy["name"] != "King"]
+        y_min = int(position[1] - 256 if position[1] - 256 > 0 else 0)
+        y_max = int(position[1] + 256 if position[1] + 256 < NY else NY)
+        if enemies and \
+                (TIME - self.time_taken) > TIME/5 and \
+                len(enemies) > 1 \
+                and np.any([enemy['cooldown'] < 0.75 for enemy in enemies]):
+            enemy_positions = [enemy["position"] for enemy in enemies]
+            if self.team == 'red':
+                # We don't copy as we just read it
+                map = self.manager.maze._board[NX - 256:, y_min:y_max]
+                gm = GradientMaze(*map.shape, map)
+                start_point = np.array(me["position"])
+                start_point[0] = 256 - (NX - start_point[0])
+                start_point[1] = start_point[1] - y_min
+                end_point = np.array(position + this_offset)
+                end_point[0] = 256 - (NX - end_point[0])
+                end_point[1] = end_point[1] - y_min
+            else:
+                map = self.manager.maze._board[0:256, y_min:y_max]
+                gm = GradientMaze(*map.shape, map)
+                start_point = np.array(me["position"])
+                start_point[1] = start_point[1] - y_min
+                end_point = np.array(position + this_offset)
+                end_point[1] = end_point[1] - y_min
+            f1 = gm.combined_potential(end_point, attractive_coef=1/200)
+            map = np.zeros_like(gm.map)
+            for idx, enemy_position in enumerate(enemy_positions):
+                if enemies[idx]['cooldown'] < 0.5:
+                    # It can't attack us, so we attack
+                    if self.team == 'red':
+                        this_x = 256 - NX + enemy_position[0]
+                    else:
+                        this_x = enemy_position[0]
+                    this_y = enemy_position[1]
+                    this_y = this_y - y_min
+                    this_x = int(np.floor(this_x/BLOCK_SIZE)*BLOCK_SIZE)
+                    this_y = int(np.floor(this_y/BLOCK_SIZE)*BLOCK_SIZE)
+                    map[this_x:this_x+BLOCK_SIZE, this_y:this_y+BLOCK_SIZE] = 1
+            gm.map = map
+            f2 = gm.combined_potential(end_point, attractive_coef=0, repulsive_coef=300)
+            route = gm.gradient_planner(f1+f2, start_point, end_point, 25)
+            idx = len(route.path)-1 if len(route.path) < 5 else 4
+            if self.team == 'red':
+                this_offset = np.array(route.path[idx, :] + [NX-256, y_min-1], dtype=np.intc) - position
+            else:
+                this_offset = np.array(route.path[idx, :] + [0, y_min-1], dtype=np.intc) - position
+        position += this_offset.astype(np.intc)
+        self.goto_position(self._current_position, position, extra=200)
+
+    @staticmethod
+    def array_row_intersection(a, b):
+        tmp = np.prod(np.swapaxes(a[:, :, None], 1, 2) == b, axis=2)
+        return a[np.sum(np.cumsum(tmp, axis=0) * tmp == 1, axis=1).astype(bool)]
 
     def path_runner(self, route, default):
         if route.length > 0:
@@ -251,12 +333,14 @@ class IdleTemplate(TemplateAI):
         if self.first_run:
             self.name = me['name']
             self.logger = get_logger(f'{CREATOR}-{me["name"]}')
+            self.initial_health = me['max_health']
         self.update_map(me, info)
         self.speed = me["speed"]
         self._dt = dt
         self.view_radius = me["view_radius"]
         self._current_position = me["position"]
         self.stuck_evaluation(self._current_position)
+        self.manager.update_king_health(self, info)
         if self.first_run:
             if self.initial_mode is None:
                 pts, backup_pts = general_search_points(self, info, self.__class__.__name__)
@@ -285,22 +369,59 @@ class IdleTemplate(TemplateAI):
         self.time_taken = t
 
     def run_override(self, info, me):
+        if self.team == 'red':
+            pos_log = self._current_position[0] < NX/2
+        else:
+            pos_log = self._current_position[0] > NX/2
+        time1_log: bool = self.time_taken > TIME*.35 and list(self.manager.override.keys())[0] == self.name
+        time2_log: bool = self.time_taken > TIME*.55 and not info['enemies'] and pos_log
+        if pos_log and (time1_log or time2_log):
+            self.control_parameters = self.control_parameters_base
+            self.manager.override[self.name] = None
+            pts, backup_pts = general_search_points(self, info, self.__class__.__name__)
+            wp = Waypoint([team_reflector(self.team, pt) for pt in pts])
+            self.manager.route[me['name']] = wp
+            self.backup_waypoints = backup_pts
+            return
         override_point = self.manager.override[self.name]
         reset_run = False
         if override_point is not None:
             position, message, setter_name = override_point
             friends: list = info['friends']
             friend_names = [friend['name'] for friend in friends]
-            idx = friend_names.index(setter_name)
-            point_setter = friends[idx]
+            friends_dict = {friend['name']: friend for friend in friends}
             # Check to see if he's dead and can continue giving commands
-            if point_setter['health'] > 0:
+            if setter_name in friend_names:
                 if message == "going_to_castle":
+                    self.logger.warn(f"Routing overriden, going to castle {position}")
                     self.goto_castle(me, info, other_castle=True, override_position=position)
+                elif message == "going_healing":
+                    if friends_dict[setter_name]['health']/friends_dict[setter_name]['max_health'] > .25:
+                        self.logger.warn(f"Healing complete {setter_name}")
+                        self.manager.override[self.name] = None
+                        return False
+                    self.logger.warn(f"Routing overriden, going to heal {position}")
+                    # Did I set this override?
+                    if setter_name == self.name:
+                        healers = [value for value in info['friends'] if value['kind'] == 'healer']
+                        if len(healers) == 0:
+                            self.manager.override[self.name] = None
+                        healer_distances = [np.hypot(*(healer['position'] - self._current_position)) for healer in
+                                            healers]
+                        closest_healer = healers[np.argmin(healer_distances)]
+                        healer_distance = np.min(healer_distances)
+                        if healer_distance < closest_healer['view_radius']/1.5:
+                            self.logger.warn(f"Close enough to healer, going to heal")
+                            self.manager.override[self.name] = None
+                            return False
+                    self.explore_position(me, position)
                 else:
                     self.logger.warn(f"Routing overriden, going to {position}")
                     self.explore_position(me, position)
                 reset_run = True
             else:
+                if message == 'going_to_castle':
+                    # We do want to go to the castle after all!
+                    self.manager.route[me['name']].destination.appendleft(position)
                 self.manager.override[self.name] = None
         return reset_run

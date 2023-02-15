@@ -5,7 +5,8 @@ __version__ = '0.0.1'
 from IdleKnights.constants import np, NY
 from .templateAI import IdleTemplate
 from IdleKnights.tools.positional import team_reflector
-from ..logic.situation import Fighter, Positional, Harvester, Castler
+from ..logic.route import Waypoint
+from ..logic.situation import Fighter, Positional, Harvester, Castler, KingUnderAttack, CallHealer
 
 KIND = 'warrior'
 WARRIOR_DICT = {
@@ -25,6 +26,8 @@ class CastleKiller(IdleTemplate):
         self._enemy_override = None
         self.previous_gem = None
         self.control_parameters = WARRIOR_DICT.copy()
+        self.control_parameters_base = WARRIOR_DICT.copy()
+
         if health_ratio is not None:
             self.control_parameters['health_ratio'] = health_ratio
         if distance_ratio is not None:
@@ -39,9 +42,16 @@ class CastleKiller(IdleTemplate):
     def run(self, t: float, dt: float, info: dict):
         super().run(t, dt, info)
         me = info['me']
+        healing_ratio, healing_position, healing_friend = CallHealer(self, info).calculate()
+        if healing_ratio > 0:
+            healer = [friend for friend in info['friends'] if friend['name'] == healing_friend]
+            self.manager.override[healing_friend] = healing_position, 'going_healing', self.name
+            self.manager.override[self.name] = healer[0]['position'], 'going_healing', self.name
         reset_run = self.run_override(info, me)
         if reset_run:
+            self.post_run(t, dt, info)
             return
+        king_saving, king_position, king_friends = KingUnderAttack(self, info).calculate()
         castle_ratio, castle_position, castle_friends = Castler(self, info).calculate()
         if castle_ratio > self.control_parameters['castle_ratio']:
             for name in castle_friends:
@@ -57,7 +67,10 @@ class CastleKiller(IdleTemplate):
             explore_ratio = Positional(self, info).calculate()
             harvester_ratio, harvester_position, harvester_friends = Harvester(self, info).calculate()
             self.logger.debug(f'Exploring ratio: {explore_ratio}, harvest_ration: {harvester_ratio}, fighting_ratio: {fighting_ratio}, castle_ratio: {castle_ratio}')
-            if fighting_ratio > self.control_parameters['fight_ratio']:
+            if king_saving > 0.01:
+                self.logger.info(f'King under attack, going to: {king_position}, king saving ratio: {king_saving}')
+                self.manager.route[me['name']].add_next_waypoint(fighting_position)
+            elif fighting_ratio > self.control_parameters['fight_ratio']:
                 self.logger.info(f'Found enemy, engaging to: {fighting_position}, fighting ratio: {fighting_ratio}')
                 if self._enemy_override is not None:
                     if np.all(self._enemy_override == np.array(self.manager.route[me['name']].next_destination)):
@@ -87,7 +100,8 @@ class CastleKiller(IdleTemplate):
             if point is None:
                 self.logger.info('No more waypoints, going to explore')
                 self.set_status('going_exploring')
-                for pnt in self.backup_waypoints:
-                    self.manager.route[me['name']].add_next_waypoint(team_reflector(self.team, pnt))
+                wp = Waypoint([team_reflector(self.team, pt) for pt in self.backup_waypoints])
+                self.manager.route[me['name']] = wp
+                point = self.manager.route[me['name']].next_waypoint(me['position'])
             self.explore_position(me, point)
         self.post_run(t, dt, info)

@@ -2,6 +2,7 @@ import numpy as np
 from typing import Tuple, Union
 
 from IdleKnights.constants import *
+from IdleKnights.tools.logging import get_logger
 from IdleKnights.logic.route import Route
 from IdleKnights.logic.route_generation.a_solver import compute as a_compute
 
@@ -15,6 +16,7 @@ class Maze:
         self._board_dilated: np.ndarray = BOARD_EMPTY * np.ones((nx, ny), dtype=np.intc)
         self.fog_of_war = np.ones((nx, ny), dtype=bool)
         self._i_board = self._board[::-1]
+        self.logger = get_logger(f'MAZE_{nx}x{ny}')
         if initialize:
             self.initialize_board()
 
@@ -72,6 +74,7 @@ class Maze:
             view = self._board_dilated[sx:ex, sy:ey]
             view[~uk_mask2] = dilated_new_section[~uk_mask2]
         except IndexError:
+            self.logger.error('updata_maze_matrix: Index out of bounds')
             return
         # fog_view = self.fog_of_war[sx:ex, sy:ey]
         # fog_view[~uk_mask] = False

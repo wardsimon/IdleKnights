@@ -39,9 +39,9 @@ def parse_position(position):
     if position[0] < 0:
         position[0] = 0
     elif position[0] >= NX:
-        position[0] = NX-1
+        position[0] = NX - 1
     if position[1] < 0:
         position[1] = 0
     elif position[1] >= NY:
-        position[1] = NY-1
+        position[1] = NY - 1
     return position
