@@ -100,7 +100,7 @@ jobs:
             shell: bash
             run: |
                echo "REPOSITORY_NAME=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
-               KNIGHTS_VERSION=$(cat setup.cfg | grep version | head -n 1 | awk -F'"' '$0=$2' | sed 's/ //g')
+               KNIGHTS_VERSION=$(cat IdleKnights/__version__.py | grep __version__ | grep -Eo '([0-9]+)(\.?[0-9]+)*')
                echo "::set-output name=tag::$KNIGHTS_VERSION"
          -
             name: Upload Artifacts GitHub releases
@@ -129,7 +129,7 @@ jobs:
                REPO_PATH: pypi
             with:
                fetch-depth: 0
-               token: '${{ secrets.WARDSIMON_TOKEN }}'
+               token: ${{ secrets.MY_PYPI }}
                repository: '${{ env.REPO }}'
                path: '${{ env.REPO_PATH }}'
          -
