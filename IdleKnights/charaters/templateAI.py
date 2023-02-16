@@ -26,7 +26,7 @@ class TemplateAI(BaseAI):
         if creator is None or not isinstance(creator, str):
             raise AttributeError('The AI needs a `creator`')
         if kind is None or not isinstance(kind, str):
-            raise AttributeError('The warrior needs a `kind`')
+            raise AttributeError('The knight needs a `kind`')
         super().__init__(*args, creator=creator, kind=kind, **kwargs)
 
     @abc.abstractmethod
@@ -396,7 +396,7 @@ class IdleTemplate(TemplateAI):
                     self.logger.warn(f"Routing overriden, going to castle {position}")
                     self.goto_castle(me, info, other_castle=True, override_position=position)
                 elif message == "going_healing":
-                    if friends_dict[setter_name]['health']/friends_dict[setter_name]['max_health'] > .25:
+                    if friends_dict[setter_name]['health']/friends_dict[setter_name]['max_health'] > .75:
                         self.logger.warn(f"Healing complete {setter_name}")
                         self.manager.override[self.name] = None
                         return False
@@ -415,6 +415,11 @@ class IdleTemplate(TemplateAI):
                             self.manager.override[self.name] = None
                             return False
                     self.explore_position(me, position)
+                elif message == "going_to_fountain":
+                    if me['health']/me['max_health'] > .75:
+                        self.logger.warn(f"Healing complete {setter_name}")
+                        self.manager.override[self.name] = None
+                        return False
                 else:
                     self.logger.warn(f"Routing overriden, going to {position}")
                     self.explore_position(me, position)

@@ -2,7 +2,7 @@ __author__ = 'github.com/wardsimon'
 __version__ = '0.0.1'
 
 
-from IdleKnights.constants import np, NY
+from IdleKnights.constants import np, NX
 from .templateAI import IdleTemplate
 from IdleKnights.tools.positional import team_reflector
 from ..logic.route import Waypoint
@@ -18,7 +18,7 @@ WARRIOR_DICT = {
 }
 
 
-class CastleKiller(IdleTemplate):
+class DeadlyKnight(IdleTemplate):
 
     def __init__(self, *args, health_ratio: float = None, distance_ratio: float = None,
                  fight_ratio: float = None, gem_ratio: float = None, castle_ratio: float = None, **kwargs):
@@ -44,15 +44,19 @@ class CastleKiller(IdleTemplate):
         me = info['me']
         healing_ratio, healing_position, healing_friend = CallHealer(self, info).calculate()
         if healing_ratio > 0:
-            healer = [friend for friend in info['friends'] if friend['name'] == healing_friend]
-            self.manager.override[healing_friend] = healing_position, 'going_healing', self.name
-            self.manager.override[self.name] = healer[0]['position'], 'going_healing', self.name
+            if healing_friend is not None:
+                healer = [friend for friend in info['friends'] if friend['name'] == healing_friend]
+                self.manager.override[healing_friend] = healing_position, 'going_healing', self.name
+                self.manager.override[self.name] = healer[0]['position'], 'going_healing', self.name
+            else:
+                self.manager.override[self.name] = healing_position, 'going_to_fountain', self.name
         reset_run = self.run_override(info, me)
         if reset_run:
             self.post_run(t, dt, info)
             return
         king_saving, king_position, king_friends = KingUnderAttack(self, info).calculate()
         castle_ratio, castle_position, castle_friends = Castler(self, info).calculate()
+        IN_ZONE = True if self.team == 'red' and self._current_position[0] > NX - 200 or self.team == 'blue' and self._current_position[0] < 200 else False
         if castle_ratio > self.control_parameters['castle_ratio']:
             for name in castle_friends:
                 self.manager.override[name] = castle_position, 'going_to_castle', self.name
@@ -77,7 +81,7 @@ class CastleKiller(IdleTemplate):
                         self.manager.route[me['name']].pop_waypoint()
                 self.manager.route[me['name']].add_next_waypoint(fighting_position)
                 self._enemy_override = fighting_position
-            elif harvester_ratio > self.control_parameters['gem_ratio']:
+            elif harvester_ratio > self.control_parameters['gem_ratio'] and not IN_ZONE:
                 if self.previous_gem is not None and not np.all(self.previous_gem == harvester_position):
                     self.logger.info(f'Found gem, going to: {harvester_position}, harvester ratio: {harvester_ratio}')
                     self.manager.route[me['name']].add_next_waypoint(harvester_position)

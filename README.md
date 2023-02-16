@@ -23,12 +23,12 @@ If you are running in competition mode, drop the `[full]` part.
 Two example usages are provided in the `tests` folder. You can play flag mode with:
 
 ```
-python tests/test_run_flag.py
+python examples/test_run_flag.py
 ```
 
 Or King mode with:
 
 ```
-python tests/test_run_king.py
+python examples/test_run_king.py
 ```
 

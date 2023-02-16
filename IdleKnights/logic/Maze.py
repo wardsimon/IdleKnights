@@ -105,7 +105,7 @@ class Maze:
             print(start)
             print(end)
         if extra is None:
-            return Route(a_compute(self._board, start, end)[::-1])
+            return Route(a_compute(self._board.copy(), self._board_dilated.copy(), start, end)[::-1])
         else:
             sx = np.min([start[0], end[0]])-extra
             if sx < 0:
@@ -122,11 +122,7 @@ class Maze:
             off = np.array([sx, sy], dtype=np.intc)
             try:
                 r = a_compute(self._board[sx:ex, sy:ey].copy(), self._board_dilated[sx:ex, sy:ey].copy(), start-off, end-off)[::-1]
-            except ValueError:
-                return Route(np.array([start, end], dtype=np.intc))
-            except LookupError:
-                return Route(np.array([start, end], dtype=np.intc))
-            except ReferenceError:
+            except (ValueError, LookupError, ReferenceError):
                 return Route(np.array([start, end], dtype=np.intc))
             r = r + off
             return Route(r)

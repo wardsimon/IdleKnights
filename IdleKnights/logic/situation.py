@@ -9,7 +9,7 @@ from typing import Dict, Tuple, Optional, List, TYPE_CHECKING
 
 import numpy as np
 
-from IdleKnights import NY, NX, BLOCK_SIZE, TIME
+from IdleKnights.constants import NY, NX, BLOCK_SIZE, TIME
 from IdleKnights.logic.route_generation.gradient_rtt import GradientMaze
 
 if TYPE_CHECKING:
@@ -94,8 +94,8 @@ class Fighter(Calculator):
             f1 = gm.combined_potential(end_point, attractive_coef=1/200)
             map = np.zeros_like(gm.map)
             for idx, enemy_position in enumerate(enemy_positions):
-                if enemies[idx]['cooldown'] < 0.5:
-                    # It can't attack us, so we attack
+                if enemies[idx]['cooldown'] < 0.75:
+                    # It can't attack but will soon. We need to avoid it
                     if knight.team == 'red':
                         this_x = 256 - NX + enemy_position[0]
                     else:
@@ -107,7 +107,10 @@ class Fighter(Calculator):
                     map[this_x:this_x+BLOCK_SIZE, this_y:this_y+BLOCK_SIZE] = 1
             gm.map = map
             f2 = gm.combined_potential(end_point, attractive_coef=0, repulsive_coef=300)
-            route = gm.gradient_planner(f1+f2, start_point, end_point, 700)
+            try:
+                route = gm.gradient_planner(f1+f2, start_point, end_point, 700)
+            except ValueError:
+                return 0, None, None
             if route.path.shape[0] < 10:
                 # We can't do anything :-/
                 return 0, None, None
@@ -248,6 +251,11 @@ class CallHealer(Calculator):
         me = self.info['me']
         if me['health']/knight.initial_health > 0.25:
             return 0, np.array([0, 0]), None
+        fountain = self.info['fountain']
+        fountain_position = np.array([fountain['x'], fountain['y']])
+        fountain_distance = np.hypot(*(fountain_position - knight._current_position))
+        if fountain_distance > 350 * knight.speed * knight._dt:
+            return 1, fountain_position, None
         friends = {friend['name']: friend for friend in self.info['friends']}
         healers = [healer for healer in self.others_of_class('healer') if healer['name'] in friends.keys()]
         if len(healers) == 0:

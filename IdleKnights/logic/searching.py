@@ -2,7 +2,7 @@ __author__ = 'github.com/wardsimon'
 __version__ = '0.0.1'
 
 import numpy as np
-from IdleKnights import NY, NX
+from IdleKnights.constants import NY, NX
 from IdleKnights.tools.positional import team_reflector
 
 
