@@ -1,5 +1,6 @@
 __author__ = 'github.com/wardsimon'
-__version__ = '0.0.1'
+from . __version__ import __version__
+
 
 from quest.core.team import Team
 from IdleKnights.logic.manager import Manager
@@ -8,7 +9,6 @@ from IdleKnights.charaters import make_character
 from IdleKnights.charaters.warrior import CastleKiller
 from IdleKnights.charaters.castleseeker import CastleSeeker
 from IdleKnights.logic.searching import king_defender
-
 
 class IdleTeam(Team):
     def reset_team(self):
