@@ -6,12 +6,13 @@ import requests
 
 org = "wardsimon"
 repo = sys.argv[1]
-token = sys.argv[2]
+package_name = sys.argv[2]
+token = sys.argv[3]
 
 headers = {'Authorization': 'token ' + token}
 releases = requests.get(f"https://api.github.com/repos/{org}/{repo}/releases", headers=headers).json()
 
-header = f"<!DOCTYPE html>\n<html>\n<head>\n<title>Links for {repo}</title>\n</head>\n<body>\n<h1>Links for {repo}</h1>"
+header = f"<!DOCTYPE html>\n<html>\n<head>\n<title>Links for {package_name}</title>\n</head>\n<body>\n<h1>Links for {package_name}</h1>"
 body = ""
 for release in releases:
     asset_url = release["assets_url"]

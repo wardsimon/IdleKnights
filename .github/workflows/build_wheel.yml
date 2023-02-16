@@ -3,9 +3,6 @@ name: Build wheels for release
    push:
       branches:
          - main
-   pull_request:
-      branches:
-         - main
 env:
    CIBW_BUILD_VERBOSITY: 3
    CIBW_BEFORE_BUILD_WINDOWS: pip install delvewheel
@@ -118,9 +115,11 @@ jobs:
                   steps.name.outputs.tag }})
          -
             name: Generate HTML
+            env:
+               PACKAGE_NAME: IdleKnights
             run: |
                pip install requests
-               python scripts/generate_html.py ${{ env.REPOSITORY_NAME }} ${{ secrets.GITHUB_TOKEN }}
+               python scripts/generate_html.py ${{ env.REPOSITORY_NAME }} ${{ env.PACKAGE_NAME }} ${{ secrets.GITHUB_TOKEN }}
          -
             name: Checkout target repo
             uses: actions/checkout@v3
