@@ -9,6 +9,40 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "IdleKnights"
+authors = [
+    {name = "Simon Ward", email = "2798086+wardsimon@users.noreply.github.com"},
+]
+description = "Knights for the game Quest"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "BSD-3-Clause"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD-Clause",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+    "numpy >= 1.24",
+    "scipy >= 1.10.0"
+]
+dynamic = ["version"]
+
+[tool.setuptools.dynamic]
+version = {attr = "IdleKnights..__version__.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]  # list of folders that contain the packages (["."] by default)
+include = ["IdleKnights*"]  # package names should match these glob patterns (["*"] by default)
+
+#[tool.setuptools]
+#packages = ["IdleKnights"]
+
+[project.optional-dependencies]
+full = ["quest @ git+https://github.com/nvaytet/quest.git@main#egg=quest"]
+
 #[build-system]
 #requires = ["poetry-core", "cython>=0.29.32", "setuptools", "numpy", "wheel"]
 #build-backend = "poetry.core.masonry.api"
