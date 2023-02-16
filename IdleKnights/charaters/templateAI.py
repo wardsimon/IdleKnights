@@ -182,17 +182,20 @@ class IdleTemplate(TemplateAI):
             if np.any(np.all(kings_block == np.floor(np.array(knights_positions) / BLOCK_SIZE) * BLOCK_SIZE,
                              axis=1)) or \
                     info["me"]["cooldown"] > 0:
-                this_offset = np.floor((OFFSET_BLOCK + self._dt * self.speed * 1.5) * np.array(offset[my_index]))
+                this_offset = np.floor((OFFSET_BLOCK + self._dt * self.speed * 2) * np.array(offset[my_index]))
                 self.logger.warn(f"Routing overriden, going out of attack position {position + this_offset}")
         # Now we check if we have enemies in the area
         enemies = info['enemies'].copy()
         enemies = [enemy for enemy in enemies if enemy["name"] != "King"]
         y_min = int(position[1] - 256 if position[1] - 256 > 0 else 0)
         y_max = int(position[1] + 256 if position[1] + 256 < NY else NY)
+        my_block = np.floor(me["position"] / BLOCK_SIZE) * BLOCK_SIZE
         if enemies and \
                 (TIME - self.time_taken) > TIME/5 and \
-                len(enemies) > 1 \
-                and np.any([enemy['cooldown'] < 0.75 for enemy in enemies]):
+                len(enemies) > 1 and \
+                (np.any([enemy['cooldown'] < 0.75 for enemy in enemies]) or
+                 np.any([np.linalg.norm(enemy['position'] - self._current_position) < 2*(2*BLOCK_SIZE**2)**0.5 and
+                         enemy['cooldown'] == 0 for enemy in enemies])):
             enemy_positions = [enemy["position"] for enemy in enemies]
             if self.team == 'red':
                 # We don't copy as we just read it
@@ -214,7 +217,9 @@ class IdleTemplate(TemplateAI):
             f1 = gm.combined_potential(end_point, attractive_coef=1/200)
             map = np.zeros_like(gm.map)
             for idx, enemy_position in enumerate(enemy_positions):
-                if enemies[idx]['cooldown'] < 0.5:
+                enemy_block = np.floor(enemy_position / BLOCK_SIZE) * BLOCK_SIZE
+                block_overlap = np.all(my_block == enemy_block)
+                if enemies[idx]['cooldown'] < 0.5 or block_overlap:
                     # It can't attack us, so we attack
                     if self.team == 'red':
                         this_x = 256 - NX + enemy_position[0]
@@ -222,12 +227,13 @@ class IdleTemplate(TemplateAI):
                         this_x = enemy_position[0]
                     this_y = enemy_position[1]
                     this_y = this_y - y_min
-                    this_x = int(np.floor(this_x/BLOCK_SIZE)*BLOCK_SIZE)
-                    this_y = int(np.floor(this_y/BLOCK_SIZE)*BLOCK_SIZE)
-                    map[this_x:this_x+BLOCK_SIZE, this_y:this_y+BLOCK_SIZE] = 1
+                    off = int(BLOCK_SIZE/8)
+                    # this_x = int(np.floor(this_x/BLOCK_SIZE)*BLOCK_SIZE)
+                    # this_y = int(np.floor(this_y/BLOCK_SIZE)*BLOCK_SIZE)
+                    map[this_x-off:this_x+off, this_y-off:this_y+off] = 1
             gm.map = map
             f2 = gm.combined_potential(end_point, attractive_coef=0, repulsive_coef=300)
-            route = gm.gradient_planner(f1+f2, start_point, end_point, 25)
+            route = gm.gradient_planner(f1+f2, start_point, end_point, 15)
             idx = len(route.path)-1 if len(route.path) < 5 else 4
             if self.team == 'red':
                 this_offset = np.array(route.path[idx, :] + [NX-256, y_min-1], dtype=np.intc) - position

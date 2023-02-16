@@ -11,4 +11,3 @@ class IdleTeam(Team):
         manager = Manager(self)
         for knight in self.values():
             knight.manager = manager
-

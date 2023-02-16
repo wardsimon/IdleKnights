@@ -102,13 +102,14 @@ class Fighter(Calculator):
                         this_x = enemy_position[0]
                     this_y = enemy_position[1]
                     this_y = this_y - y_min
-                    this_x = int(np.floor(this_x/BLOCK_SIZE)*BLOCK_SIZE)
-                    this_y = int(np.floor(this_y/BLOCK_SIZE)*BLOCK_SIZE)
-                    map[this_x:this_x+BLOCK_SIZE, this_y:this_y+BLOCK_SIZE] = 1
+                    off = int(BLOCK_SIZE/8)
+                    # this_x = int(np.floor(this_x/BLOCK_SIZE)*BLOCK_SIZE)
+                    # this_y = int(np.floor(this_y/BLOCK_SIZE)*BLOCK_SIZE)
+                    map[this_x-off:this_x+off, this_y-off:this_y+off] = 1
             gm.map = map
-            f2 = gm.combined_potential(end_point, attractive_coef=0, repulsive_coef=300)
+            f2 = gm.combined_potential(end_point, attractive_coef=0, repulsive_coef=350)
             try:
-                route = gm.gradient_planner(f1+f2, start_point, end_point, 700)
+                route = gm.gradient_planner(f1+f2, start_point, end_point, 15)
             except ValueError:
                 return 0, None, None
             if route.path.shape[0] < 10:
@@ -209,7 +210,7 @@ class KingUnderAttack(Calculator):
             eta = speed / distance
             king_health = knight.manager.king_health
             # assume the king will be hit again in 3 seconds.
-            if eta < 3 * king_health/30:
+            if eta > 3 * king_health/30:
                 # He's dead, Jim.
                 print(f'King is probably dead. ETA: {eta}, Time left: {3 * king_health/30}')
                 return 0, position, None

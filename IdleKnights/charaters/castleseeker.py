@@ -76,7 +76,7 @@ class SpeedyKnight(IdleTemplate):
             self.logger.debug(f'Exploring ratio: {explore_ratio}, harvest_ration: {harvester_ratio}, fighting_ratio: {fighting_ratio}, castle_ratio: {castle_ratio}')
             if king_saving > 0.01:
                 self.logger.info(f'King under attack, going to: {king_position}, king saving ratio: {king_saving}')
-                self.manager.route[me['name']].add_next_waypoint(fighting_position)
+                self.manager.route[me['name']].add_next_waypoint(king_position)
             elif fighting_ratio > self.control_parameters['fight_ratio']:
                 self.logger.info(f'Found enemy, engaging to: {fighting_position}, fighting ratio: {fighting_ratio}')
                 if self._enemy_override is not None:
