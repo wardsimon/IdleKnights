@@ -26,7 +26,7 @@ class TemplateAI(BaseAI):
         if creator is None or not isinstance(creator, str):
             raise AttributeError('The AI needs a `creator`')
         if kind is None or not isinstance(kind, str):
-            raise AttributeError('The warrior needs a `kind`')
+            raise AttributeError('The knight needs a `kind`')
         super().__init__(*args, creator=creator, kind=kind, **kwargs)
 
     @abc.abstractmethod
@@ -182,27 +182,32 @@ class IdleTemplate(TemplateAI):
             if np.any(np.all(kings_block == np.floor(np.array(knights_positions) / BLOCK_SIZE) * BLOCK_SIZE,
                              axis=1)) or \
                     info["me"]["cooldown"] > 0:
-                this_offset = np.floor((OFFSET_BLOCK + self._dt * self.speed * 1.5) * np.array(offset[my_index]))
+                this_offset = np.floor((OFFSET_BLOCK + self._dt * self.speed * 2) * np.array(offset[my_index]))
                 self.logger.warn(f"Routing overriden, going out of attack position {position + this_offset}")
         # Now we check if we have enemies in the area
         enemies = info['enemies'].copy()
         enemies = [enemy for enemy in enemies if enemy["name"] != "King"]
-        y_min = int(position[1] - 256 if position[1] - 256 > 0 else 0)
-        y_max = int(position[1] + 256 if position[1] + 256 < NY else NY)
+        # Align the enemy positions to the block size
+        BLOCK_FACTOR = 8
+        y_min = int(BLOCK_SIZE*np.floor(position[1]/BLOCK_SIZE) - BLOCK_FACTOR*BLOCK_SIZE if position[1] - BLOCK_FACTOR*BLOCK_SIZE > 0 else 0)
+        y_max = int(BLOCK_SIZE*np.floor(position[1]/BLOCK_SIZE) + BLOCK_SIZE + BLOCK_FACTOR*BLOCK_SIZE if position[1] + BLOCK_FACTOR*BLOCK_SIZE < NY else NY)
+        my_block = np.floor(me["position"] / BLOCK_SIZE) * BLOCK_SIZE
         if enemies and \
                 (TIME - self.time_taken) > TIME/5 and \
-                len(enemies) > 1 \
-                and np.any([enemy['cooldown'] < 0.75 for enemy in enemies]):
+                len(enemies) > 1 and \
+                (np.any([enemy['cooldown'] < 0.75 for enemy in enemies]) or
+                 np.any([np.linalg.norm(enemy['position'] - self._current_position) < 2*(2*BLOCK_SIZE**2)**0.5 and
+                         enemy['cooldown'] == 0 for enemy in enemies])):
             enemy_positions = [enemy["position"] for enemy in enemies]
             if self.team == 'red':
                 # We don't copy as we just read it
                 map = self.manager.maze._board[NX - 256:, y_min:y_max]
                 gm = GradientMaze(*map.shape, map)
                 start_point = np.array(me["position"])
-                start_point[0] = 256 - (NX - start_point[0])
+                start_point[0] = BLOCK_FACTOR*BLOCK_SIZE - (NX - start_point[0])
                 start_point[1] = start_point[1] - y_min
                 end_point = np.array(position + this_offset)
-                end_point[0] = 256 - (NX - end_point[0])
+                end_point[0] = BLOCK_FACTOR*BLOCK_SIZE - (NX - end_point[0])
                 end_point[1] = end_point[1] - y_min
             else:
                 map = self.manager.maze._board[0:256, y_min:y_max]
@@ -214,7 +219,9 @@ class IdleTemplate(TemplateAI):
             f1 = gm.combined_potential(end_point, attractive_coef=1/200)
             map = np.zeros_like(gm.map)
             for idx, enemy_position in enumerate(enemy_positions):
-                if enemies[idx]['cooldown'] < 0.5:
+                enemy_block = np.floor(enemy_position / BLOCK_SIZE) * BLOCK_SIZE
+                block_overlap = np.all(my_block == enemy_block)
+                if enemies[idx]['cooldown'] < 0.5 or block_overlap:
                     # It can't attack us, so we attack
                     if self.team == 'red':
                         this_x = 256 - NX + enemy_position[0]
@@ -222,12 +229,13 @@ class IdleTemplate(TemplateAI):
                         this_x = enemy_position[0]
                     this_y = enemy_position[1]
                     this_y = this_y - y_min
-                    this_x = int(np.floor(this_x/BLOCK_SIZE)*BLOCK_SIZE)
-                    this_y = int(np.floor(this_y/BLOCK_SIZE)*BLOCK_SIZE)
-                    map[this_x:this_x+BLOCK_SIZE, this_y:this_y+BLOCK_SIZE] = 1
+                    # off = int(BLOCK_SIZE/8)
+                    # this_x = int(np.floor(this_x/BLOCK_SIZE)*BLOCK_SIZE)
+                    # this_y = int(np.floor(this_y/BLOCK_SIZE)*BLOCK_SIZE)
+                    map[this_x, this_y] = 1
             gm.map = map
-            f2 = gm.combined_potential(end_point, attractive_coef=0, repulsive_coef=300)
-            route = gm.gradient_planner(f1+f2, start_point, end_point, 25)
+            f2 = gm.combined_potential(end_point, attractive_coef=0)
+            route = gm.gradient_planner(f1+f2, start_point, end_point, 15)
             idx = len(route.path)-1 if len(route.path) < 5 else 4
             if self.team == 'red':
                 this_offset = np.array(route.path[idx, :] + [NX-256, y_min-1], dtype=np.intc) - position
@@ -396,7 +404,7 @@ class IdleTemplate(TemplateAI):
                     self.logger.warn(f"Routing overriden, going to castle {position}")
                     self.goto_castle(me, info, other_castle=True, override_position=position)
                 elif message == "going_healing":
-                    if friends_dict[setter_name]['health']/friends_dict[setter_name]['max_health'] > .25:
+                    if friends_dict[setter_name]['health']/friends_dict[setter_name]['max_health'] > .75:
                         self.logger.warn(f"Healing complete {setter_name}")
                         self.manager.override[self.name] = None
                         return False
@@ -415,6 +423,11 @@ class IdleTemplate(TemplateAI):
                             self.manager.override[self.name] = None
                             return False
                     self.explore_position(me, position)
+                elif message == "going_to_fountain":
+                    if me['health']/me['max_health'] > .75:
+                        self.logger.warn(f"Healing complete {setter_name}")
+                        self.manager.override[self.name] = None
+                        return False
                 else:
                     self.logger.warn(f"Routing overriden, going to {position}")
                     self.explore_position(me, position)

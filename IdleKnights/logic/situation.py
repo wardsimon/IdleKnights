@@ -9,14 +9,14 @@ from typing import Dict, Tuple, Optional, List, TYPE_CHECKING
 
 import numpy as np
 
-from IdleKnights import NY, NX, BLOCK_SIZE, TIME
+from IdleKnights.constants import NY, NX, BLOCK_SIZE, TIME
 from IdleKnights.logic.route_generation.gradient_rtt import GradientMaze
 
 if TYPE_CHECKING:
     from IdleKnights.charaters.templateAI import IdleTemplate
 from IdleKnights.logic.searching import CONVERTER
 from IdleKnights.tools.positional import team_reflector
-
+from IdleKnights.tools.logging import get_logger
 
 def flag_game(info: dict):
     """
@@ -32,6 +32,7 @@ class Calculator:
     """
     knight: IdleTemplate
     info: Dict[str, any]
+    logger = get_logger('Calculator')
 
     @abc.abstractmethod
     def calculate(self):
@@ -64,6 +65,8 @@ class Fighter(Calculator):
         me_info = info['me']
         knight = self.knight
         enemies = info['enemies']
+        if len(enemies) == 0:
+            return 0, position, None
         if knight.team == 'red':
             be_smart = knight._current_position[0] > NX - 256
         else:
@@ -76,7 +79,8 @@ class Fighter(Calculator):
             y_max = attempted_position[1] + 256 if attempted_position[1] + 256 < NY else NY
             if knight.team == 'red':
                 # We don't copy as we just read it
-                map = knight.manager.maze._board[NX - 256:, y_min:y_max]
+                x_min = NX - 256
+                map = knight.manager.maze._board[x_min:, y_min:y_max]
                 gm = GradientMaze(*map.shape, map)
                 start_point = np.array(position)
                 start_point[0] = 256 - (NX - start_point[0])
@@ -85,6 +89,7 @@ class Fighter(Calculator):
                 end_point[0] = 256 - (NX - end_point[0])
                 end_point[1] = end_point[1] - y_min
             else:
+                x_min = 0
                 map = knight.manager.maze._board[0:256, y_min:y_max]
                 gm = GradientMaze(*map.shape, map)
                 start_point = np.array(position)
@@ -92,29 +97,31 @@ class Fighter(Calculator):
                 end_point = np.array(attempted_position)
                 end_point[1] = end_point[1] - y_min
             f1 = gm.combined_potential(end_point, attractive_coef=1/200)
-            map = np.zeros_like(gm.map)
+            mini_map = np.zeros_like(gm.map)
             for idx, enemy_position in enumerate(enemy_positions):
-                if enemies[idx]['cooldown'] < 0.5:
-                    # It can't attack us, so we attack
+                if enemies[idx]['cooldown'] < 0.75:
+                    # It can't attack but will soon. We need to avoid it
                     if knight.team == 'red':
                         this_x = 256 - NX + enemy_position[0]
                     else:
                         this_x = enemy_position[0]
                     this_y = enemy_position[1]
                     this_y = this_y - y_min
-                    this_x = int(np.floor(this_x/BLOCK_SIZE)*BLOCK_SIZE)
-                    this_y = int(np.floor(this_y/BLOCK_SIZE)*BLOCK_SIZE)
-                    map[this_x:this_x+BLOCK_SIZE, this_y:this_y+BLOCK_SIZE] = 1
-            gm.map = map
-            f2 = gm.combined_potential(end_point, attractive_coef=0, repulsive_coef=300)
-            route = gm.gradient_planner(f1+f2, start_point, end_point, 700)
+                    off = int(BLOCK_SIZE/8)
+                    # this_x = int(np.floor(this_x/BLOCK_SIZE)*BLOCK_SIZE)
+                    # this_y = int(np.floor(this_y/BLOCK_SIZE)*BLOCK_SIZE)
+                    mini_map[this_x, this_y] = 1
+            gm.map = mini_map
+            f2 = gm.combined_potential(end_point, attractive_coef=0, repulsive_coef=350)
+            try:
+                route = gm.gradient_planner(f1+f2, start_point, end_point, 15)
+            except ValueError:
+                return 0, None, None
             if route.path.shape[0] < 10:
                 # We can't do anything :-/
                 return 0, None, None
-            return 0.5, route.path[9, :], None
+            return 0.5, route.path[9, :] + [x_min, y_min], None
         else:
-            if len(enemies) == 0:
-                return 0, np.array([0, 0]), None
             distance = np.array([np.hypot(*(knight._current_position - enemy['position'])) for enemy in enemies])
             ind = np.argmin(distance)
 
@@ -203,22 +210,25 @@ class KingUnderAttack(Calculator):
             king_attacked_at = knight.manager.king_hit_time
             distance = np.hypot(*(position - knight._current_position))
             speed = knight.speed
-            eta = speed / distance
+            eta = (speed / distance) / knight._dt
             king_health = knight.manager.king_health
             # assume the king will be hit again in 3 seconds.
-            if eta < 3 * king_health/30:
-                # He's dead, Jim.
-                print(f'King is probably dead. ETA: {eta}, Time left: {3 * king_health/30}')
+            if eta > 3 * king_health/30:
+                self.logger.warn(f"KING LOGGER - Team: {knight.team}. King is probably dead. ETA ({knight.name}): {eta}, Time left: {3 * king_health/30}")
                 return 0, position, None
             else:
                 # Do a sanity check
                 dt = knight.time_taken - king_attacked_at
                 if dt > 2 * 3 * king_health / 30:
                     knight.manager.king_saved()
-                    print(f'King is probably saved. ETA: {eta}, Time left: {3 * king_health / 30}')
+                    self.logger.warn(
+                        f"KING LOGGER - Team: {knight.team}. 'King is probably saved. ETA ({knight.name}): {eta}, Time left: {3 * king_health / 30}")
                     # Well, he's dead or somehow the king is not being attacked.
                     return 0, position, None
-                print(f'King is in need of help. ETA: {eta}, Time left: {3 * king_health/30}')
+                self.logger.warn(f"KING LOGGER - Team: {knight.team}. King is in need of help. ETA ({knight.name}): {eta}, Time left: {3 * king_health/30}")
+                if ((TIME - knight.time_taken)/TIME) < 0.3 and distance > 150:
+                    # We really need to kill the other king.
+                    return 0, position, None
                 return 1, position, None
         return 0, position, None
 
@@ -248,6 +258,11 @@ class CallHealer(Calculator):
         me = self.info['me']
         if me['health']/knight.initial_health > 0.25:
             return 0, np.array([0, 0]), None
+        fountain = self.info['fountain']
+        fountain_position = np.array([fountain['x'], fountain['y']])
+        fountain_distance = np.hypot(*(fountain_position - knight._current_position))
+        if fountain_distance > 350 * knight.speed * knight._dt:
+            return 1, fountain_position, None
         friends = {friend['name']: friend for friend in self.info['friends']}
         healers = [healer for healer in self.others_of_class('healer') if healer['name'] in friends.keys()]
         if len(healers) == 0:

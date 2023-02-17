@@ -36,12 +36,12 @@ def parse_position(position):
     position = np.array(position, dtype=np.intc)
     if len(position.shape) == 0:
         raise ValueError('Malformed position')
-    if position[0] < 0:
-        position[0] = 0
-    elif position[0] >= NX:
+    if position[0] < 1:
+        position[0] = 1
+    elif position[0] > NX:
         position[0] = NX - 1
-    if position[1] < 0:
-        position[1] = 0
-    elif position[1] >= NY:
+    if position[1] < 1:
+        position[1] = 1
+    elif position[1] > NY:
         position[1] = NY - 1
     return position

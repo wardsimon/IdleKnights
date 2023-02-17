@@ -1,11 +1,11 @@
 [build-system]
 # Minimum requirements for the build system to execute.
 requires = [
-    "setuptools>=42",  # https://github.com/deepcharles/ruptures/pull/100#discussion_r553700339
+    "setuptools>=42",
     "wheel",
     "Cython>=0.28.5",
-    "setuptools_scm[toml]>=3.4",  # https://scikit-hep.org/developer/packaging#git-tags-official-pypa-method
-    "numpy",  # https://github.com/scipy/oldest-supported-numpy
+    "setuptools_scm[toml]>=3.4",
+    "numpy",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -37,42 +37,6 @@ version = {attr = "IdleKnights..__version__.__version__"}
 where = ["."]  # list of folders that contain the packages (["."] by default)
 include = ["IdleKnights*"]  # package names should match these glob patterns (["*"] by default)
 
-#[tool.setuptools]
-#packages = ["IdleKnights"]
-
 [project.optional-dependencies]
 full = ["quest @ git+https://github.com/nvaytet/quest.git@main#egg=quest"]
-
-#[build-system]
-#requires = ["poetry-core", "cython>=0.29.32", "setuptools", "numpy", "wheel"]
-#build-backend = "poetry.core.masonry.api"
-#
-#[tool.poetry]
-#name = "IdleQuestKnights"
-#version = "0.1.0"
-#description = "Knights for the game Quest"
-#license = "BSD-3-Clause"
-#authors = ["Simon Ward"]
-#readme = "README.md"
-#classifiers = [
-#    "Development Status :: 3 - Alpha",
-#    "Intended Audience :: Developers",
-#    "License :: OSI Approved :: BSD-Clause",
-#    "Programming Language :: Python :: 3 :: Only",
-#]
-#packages = [ { include = "IdleKnights" } ]
-#include = ["IdleKnights/**/*.so", "IdleKnights/**/*.dll"]  # ignored in VCS, so we need to be explicit
-#exclude = ["IdleKnights/**/*.py"]
-#
-#[tool.poetry.build]
-#script = "build.py"
-#generate-setup-file = false
-#
-#[tool.poetry.dev-dependencies]
-#Cython = "^0.29.32"
-#
-#[tool.poetry.dependencies]
-#python = "^3.8"
-#numpy = "^1.24"
-#scipy = "^1.10.0"
-#quest = {git="https://github.com/nvaytet/quest.git", rev="main"}
+tests = ["pytest"]

@@ -2,7 +2,7 @@ __author__ = 'github.com/wardsimon'
 __version__ = '0.0.1'
 
 import numpy as np
-from IdleKnights import NY, NX
+from IdleKnights.constants import NY, NX
 from IdleKnights.tools.positional import team_reflector
 
 
@@ -18,7 +18,7 @@ def general_search_points(knight, info, name):
         pts.append([NX - X_DIFF,
                     NY - Y_DIFF/2 - Y_DIFF*(2*np.random.random()-0.5) - knight.number * (NY - knight.view_radius) / number_of_knights])
         pts.append([NX - X_DIFF,
-                    NY - Y_DIFF/2 - Y_DIFF*(np.random.random()-0.5) - (knight.number + 1) * (NY - knight.view_radius) / number_of_knights])
+                    NY - Y_DIFF/2 - Y_DIFF*(np.random.random()-0.5) - (knight.number + 1 if number_of_knights > 1 else 1) * (NY - knight.view_radius) / number_of_knights])
         pts.append([NX - X_DIFF, NY - Y_DIFF])
     else:
         pts.append([NX - X_DIFF,
@@ -27,12 +27,18 @@ def general_search_points(knight, info, name):
                     Y_DIFF/2 + Y_DIFF*(np.random.random()-0.5) + (knight.number + 1) * (NY - knight.view_radius) / number_of_knights])
         pts.append([NX - X_DIFF, Y_DIFF])
 
-    run_out_of_pts = [
-        [100, 50 + np.random.randint(10, 60)],
-        [100, NY - 50 - np.random.randint(10, 60)]
-    ]
+    if knight.team == 'red':
+        run_out_of_pts = [
+            [NX - 100, 50 + np.random.randint(10, 60)],
+            [NX - 100, NY - 50 - np.random.randint(10, 60)]
+        ]
+    else:
+        run_out_of_pts = [
+            [100, 50 + np.random.randint(10, 60)],
+            [100, NY - 50 - np.random.randint(10, 60)]
+        ]
 
-    return pts, [team_reflector(knight.team, p) for p in run_out_of_pts]
+    return pts, run_out_of_pts
 
 
 def king_defender(knight, info, name):

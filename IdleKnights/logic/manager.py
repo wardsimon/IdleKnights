@@ -30,13 +30,13 @@ class Manager:
     def update_king_health(self, knight, info):
         current_t = knight.time_taken
         friends = info['friends']
-        new_king_health = [friend['health'] for friend in friends if friend['name'] == 'King']
+        new_king_health = [friend['health'] for friend in friends if friend['name'].lower() == 'king']
         new_king_health = new_king_health[0] if len(new_king_health) > 0 else None
         if new_king_health is not None and self.king_old_health is not new_king_health:
             # The king is under attack
-            self.king_old_health = self.king_health
+            self.king_old_health = int(self.king_health) if self.king_health is not None else 100
             self.king_health = new_king_health
-            if self.king_hit_time is None:
+            if self.king_hit_time is None or self.king_hit_time == 0:
                 self.king_hit_time = current_t
 
     def king_saved(self):

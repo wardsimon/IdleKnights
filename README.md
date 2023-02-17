@@ -7,7 +7,7 @@ Valiant knights for the game [Quest](https://github.com/nvaytet/quest), aiming t
 Install the wheel with:
 
 ```
-pip install IdleKnights[full] --extra-index-url https://pypi.simonskaal.com
+pip install --extra-index-url=https://pypi.simonskaal.com/ IdleKnights[full]
 ```
 
 Or build from source with:
@@ -16,19 +16,19 @@ Or build from source with:
 pip install '.[full]'
 ```
 
-If you are running in competition mode, drop the `[full]` part.
+If you are running in competition mode, drop the `[full]`. A competition version of quest should already be installed.
 
 ## Usage
 
 Two example usages are provided in the `tests` folder. You can play flag mode with:
 
 ```
-python tests/test_run_flag.py
+python examples/test_run_flag.py
 ```
 
 Or King mode with:
 
 ```
-python tests/test_run_king.py
+python examples/test_run_king.py
 ```
 
