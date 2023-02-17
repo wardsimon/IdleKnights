@@ -19,7 +19,7 @@ knight_modifiers = {
 }
 
 AwsomeTeam = IdleTeam(CREATOR,
-                      Melchior=make_character(SpeedyKnight, index=0, mode=GAME_MODE, inject_kwargs=knight_modifiers),
+                      Melchior=make_character(SpeedyKnight, index=0, mode=GAME_MODE),
                       Caspar=make_character(SpeedyKnight, index=1, mode=GAME_MODE, inject_kwargs=knight_modifiers),
                       Balthazar=make_character(SpeedyKnight, index=2, mode=GAME_MODE, inject_kwargs=knight_modifiers))
 
