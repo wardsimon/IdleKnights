@@ -187,8 +187,10 @@ class IdleTemplate(TemplateAI):
         # Now we check if we have enemies in the area
         enemies = info['enemies'].copy()
         enemies = [enemy for enemy in enemies if enemy["name"] != "King"]
-        y_min = int(position[1] - 256 if position[1] - 256 > 0 else 0)
-        y_max = int(position[1] + 256 if position[1] + 256 < NY else NY)
+        # Align the enemy positions to the block size
+        BLOCK_FACTOR = 8
+        y_min = int(BLOCK_SIZE*np.floor(position[1]/BLOCK_SIZE) - BLOCK_FACTOR*BLOCK_SIZE if position[1] - BLOCK_FACTOR*BLOCK_SIZE > 0 else 0)
+        y_max = int(BLOCK_SIZE*np.floor(position[1]/BLOCK_SIZE) + BLOCK_SIZE + BLOCK_FACTOR*BLOCK_SIZE if position[1] + BLOCK_FACTOR*BLOCK_SIZE < NY else NY)
         my_block = np.floor(me["position"] / BLOCK_SIZE) * BLOCK_SIZE
         if enemies and \
                 (TIME - self.time_taken) > TIME/5 and \
@@ -202,10 +204,10 @@ class IdleTemplate(TemplateAI):
                 map = self.manager.maze._board[NX - 256:, y_min:y_max]
                 gm = GradientMaze(*map.shape, map)
                 start_point = np.array(me["position"])
-                start_point[0] = 256 - (NX - start_point[0])
+                start_point[0] = BLOCK_FACTOR*BLOCK_SIZE - (NX - start_point[0])
                 start_point[1] = start_point[1] - y_min
                 end_point = np.array(position + this_offset)
-                end_point[0] = 256 - (NX - end_point[0])
+                end_point[0] = BLOCK_FACTOR*BLOCK_SIZE - (NX - end_point[0])
                 end_point[1] = end_point[1] - y_min
             else:
                 map = self.manager.maze._board[0:256, y_min:y_max]
@@ -227,12 +229,12 @@ class IdleTemplate(TemplateAI):
                         this_x = enemy_position[0]
                     this_y = enemy_position[1]
                     this_y = this_y - y_min
-                    off = int(BLOCK_SIZE/8)
+                    # off = int(BLOCK_SIZE/8)
                     # this_x = int(np.floor(this_x/BLOCK_SIZE)*BLOCK_SIZE)
                     # this_y = int(np.floor(this_y/BLOCK_SIZE)*BLOCK_SIZE)
-                    map[this_x-off:this_x+off, this_y-off:this_y+off] = 1
+                    map[this_x, this_y] = 1
             gm.map = map
-            f2 = gm.combined_potential(end_point, attractive_coef=0, repulsive_coef=300)
+            f2 = gm.combined_potential(end_point, attractive_coef=0)
             route = gm.gradient_planner(f1+f2, start_point, end_point, 15)
             idx = len(route.path)-1 if len(route.path) < 5 else 4
             if self.team == 'red':

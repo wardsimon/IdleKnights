@@ -13,6 +13,9 @@ from IdleKnights.charaters.castleseeker import SpeedyKnight
 from IdleKnights.charaters.castlekiller import DeadlyKnight
 from IdleKnights.logic.searching import king_defender
 
+
+GAME_MODE = "king"
+SPEEDUP = 1.25
 ANGRY = {
     'health_ratio':   0.15,
     'distance_ratio': 0.1,
@@ -21,15 +24,17 @@ ANGRY = {
 }
 
 AwsomeTeam = IdleTeam(CREATOR,
-                Caspar=make_character(DeadlyKnight, index=0, mode='king', initial_mode=king_defender, inject_kwargs=ANGRY),
-                Melchior=make_character(DeadlyKnight, index=0, mode='king', initial_mode=king_defender,
+                Caspar=make_character(DeadlyKnight, index=0, mode=GAME_MODE, initial_mode=king_defender,
+                                      inject_kwargs=ANGRY),
+                Melchior=make_character(DeadlyKnight, index=0, mode=GAME_MODE, initial_mode=king_defender,
                                         inject_kwargs=ANGRY),
-                Balthazar=make_character(DeadlyKnight, index=1, mode='king', initial_mode=king_defender, inject_kwargs=ANGRY))
+                Balthazar=make_character(DeadlyKnight, index=1, mode=GAME_MODE, initial_mode=king_defender,
+                                         inject_kwargs=ANGRY))
 
 AwsomeTeam2 = IdleTeam(CREATOR,
-                       Ruohtta=make_character(SpeedyKnight, index=0, mode='king'),
-                       Parnashavari=make_character(DeadlyKnight, index=1, mode='king'),
-                       Matarajin=make_character(DeadlyKnight, index=0, mode='king'))
+                       Ruohtta=make_character(SpeedyKnight, index=0, mode=GAME_MODE),
+                       Parnashavari=make_character(DeadlyKnight, index=1, mode=GAME_MODE),
+                       Matarajin=make_character(DeadlyKnight, index=0, mode=GAME_MODE))
 
 Awsome = [AwsomeTeam, AwsomeTeam2]
 indexes = np.random.choice(2, 2, replace=False)
@@ -37,6 +42,7 @@ indexes = np.random.choice(2, 2, replace=False)
 match = Match(red_team=make_team(Awsome[indexes[0]]),
               blue_team=make_team(Awsome[indexes[1]]),
               best_of=3,
-              game_mode='king')
+              game_mode=GAME_MODE
+              )
 
-match.play(speedup=1.25, show_messages=False)
+match.play(speedup=SPEEDUP, show_messages=False)
